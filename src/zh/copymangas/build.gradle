@@ -1,0 +1,15 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+ext {
+    extName = 'CopyMangas'
+    pkgNameSuffix = 'zh.copymangas'
+    extClass = '.CopyMangas'
+    extVersionCode = 20
+}
+apply from: "$rootDir/common.gradle"
+
+dependencies {
+    implementation 'com.luhuiguo:chinese-utils:1.0'
+//    implementation project(':lib-ratelimit')
+}
