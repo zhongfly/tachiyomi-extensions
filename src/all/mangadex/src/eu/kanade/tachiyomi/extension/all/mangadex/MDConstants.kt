@@ -24,6 +24,7 @@ object MDConstants {
     const val apiUrl = "https://api.mangadex.org"
     const val apiMangaUrl = "$apiUrl/manga"
     const val apiChapterUrl = "$apiUrl/chapter"
+    const val apiListUrl = "$apiUrl/list"
     const val atHomePostUrl = "https://api.mangadex.network/report"
     val whitespaceRegex = "\\s".toRegex()
 
@@ -35,6 +36,9 @@ object MDConstants {
     const val prefixIdSearch = "id:"
     const val prefixChSearch = "ch:"
     const val prefixGrpSearch = "grp:"
+    const val prefixAuthSearch = "author:"
+    const val prefixUsrSearch = "usr:"
+    const val prefixListSearch = "list:"
 
     const val coverQualityPref = "thumbnailQuality"
 

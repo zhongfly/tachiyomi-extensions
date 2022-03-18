@@ -17,7 +17,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Anitation Arts", "https://anitationarts.org", "en", overrideVersionCode = 1),
         SingleLang("Alpha Scans", "https://alpha-scans.org", "en", overrideVersionCode = 1),
         SingleLang("BeastScans", "https://beastscans.com", "en"),
-        SingleLang("iiMANGA", "https://iimanga.com", "ar"),
+        SingleLang("iiMANGA", "https://aresmanga.com", "ar", overrideVersionCode = 1),
         SingleLang("Magus Manga", "https://magusmanga.com", "ar"),
         SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 6),
         SingleLang("KomikMama", "https://komikmama.net", "id"),
@@ -50,6 +50,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Ozul Scans", "https://ozulscans.com", "ar"),
         SingleLang("Tsundoku Traduções", "https://tsundoku.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 9),
         SingleLang("Komik Lab", "https://komiklab.com", "id"),
+        SingleLang("Arcane scan", "https://arcanescan.fr", "fr"),
     )
 
     companion object {

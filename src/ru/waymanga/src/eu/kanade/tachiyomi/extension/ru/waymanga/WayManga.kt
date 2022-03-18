@@ -51,10 +51,8 @@ class WayManga : ParsedHttpSource() {
     override fun latestUpdatesFromElement(element: Element): SManga {
         val manga = SManga.create()
         manga.thumbnail_url = element.select("img").first().attr("src")
-        element.select("a").first().let {
+        element.select("div.col-6 a").first().let {
             manga.setUrlWithoutDomain(it.attr("href"))
-        }
-        element.select("div.col-6").first().let {
             manga.title = it.text()
         }
         return manga
@@ -89,6 +87,7 @@ class WayManga : ParsedHttpSource() {
         val chapter = SChapter.create()
         element.select("div.col-5").first().let {
             chapter.name = it.text()
+            chapter.chapter_number = it.text().substringBefore(" глава").substringAfter("том ").toFloat()
         }
         chapter.setUrlWithoutDomain(urlElement.attr("href"))
         chapter.date_upload = element.select("div.col-5:eq(1)").text().toDate()

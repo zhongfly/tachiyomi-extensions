@@ -170,13 +170,24 @@ class LibHentai : ConfigurableSource, HttpSource() {
     private fun popularMangaFromElement(el: JsonElement) = SManga.create().apply {
         val slug = el.jsonObject["slug"]!!.jsonPrimitive.content
         val cover = el.jsonObject["cover"]!!.jsonPrimitive.content
-        title = if (isEng.equals("rus")) el.jsonObject["rus_name"]!!.jsonPrimitive.content else el.jsonObject["name"]!!.jsonPrimitive.content
+        title = when {
+            isEng.equals("rus") && el.jsonObject["rus_name"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> el.jsonObject["rus_name"]!!.jsonPrimitive.content
+            isEng.equals("eng") && el.jsonObject["eng_name"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> el.jsonObject["eng_name"]!!.jsonPrimitive.content
+            else -> el.jsonObject["name"]!!.jsonPrimitive.content
+        }
         thumbnail_url = "$COVER_URL/huploads/cover/$slug/cover/${cover}_250x350.jpg"
         url = "/$slug"
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
         val document = response.asJsoup()
+        val dataStr = document
+            .toString()
+            .substringAfter("window.__DATA__ = ")
+            .substringBefore("window._SITE_COLOR_")
+            .substringBeforeLast(";")
+
+        val dataManga = json.decodeFromString<JsonObject>(dataStr)["manga"]
 
         val manga = SManga.create()
 
@@ -208,7 +219,11 @@ class LibHentai : ConfigurableSource, HttpSource() {
             else -> "☆☆☆☆☆"
         }
         val genres = document.select(".media-tags > a").map { it.text().capitalize() }
-        manga.title = if (isEng.equals("rus")) document.select(".media-name__main").text() else document.select(".media-name__alt").text()
+        manga.title = when {
+            isEng.equals("rus") && dataManga!!.jsonObject["rusName"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> dataManga.jsonObject["rusName"]!!.jsonPrimitive.content
+            isEng.equals("eng") && dataManga!!.jsonObject["engName"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> dataManga.jsonObject["engName"]!!.jsonPrimitive.content
+            else -> dataManga!!.jsonObject["name"]!!.jsonPrimitive.content
+        }
         manga.thumbnail_url = document.select(".media-sidebar__cover > img").attr("src")
         manga.author = body.select("div.media-info-list__title:contains(Автор) + div").text()
         manga.artist = body.select("div.media-info-list__title:contains(Художник) + div").text()
@@ -226,13 +241,17 @@ class LibHentai : ConfigurableSource, HttpSource() {
                 else -> SManga.UNKNOWN
             }
         manga.genre = category + ", " + rawAgeStop + ", " + genres.joinToString { it.trim() }
-        val altSelector = document.select(".media-info-list__item_alt-names .media-info-list__value div")
-        var altName = ""
-        if (altSelector.isNotEmpty()) {
-            altName = "Альтернативные названия:\n" + altSelector.map { it.text() }.joinToString(" / ") + "\n\n"
+
+        val altName = if (dataManga!!.jsonObject["altNames"]?.jsonArray.orEmpty().isNotEmpty())
+            "Альтернативные названия:\n" + dataManga.jsonObject["altNames"]!!.jsonArray.joinToString(" / ") { it.jsonPrimitive.content } + "\n\n"
+        else ""
+
+        val mediaNameLanguage = when {
+            isEng.equals("eng") && dataManga!!.jsonObject["rusName"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> dataManga.jsonObject["rusName"]!!.jsonPrimitive.content + "\n"
+            isEng.equals("rus") && dataManga!!.jsonObject["engName"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> dataManga.jsonObject["engName"]!!.jsonPrimitive.content + "\n"
+            else -> ""
         }
-        val mediaNameLanguage = if (isEng.equals("rus")) document.select(".media-name__alt").text() else document.select(".media-name__main").text()
-        manga.description = mediaNameLanguage + "\n" + ratingStar + " " + ratingValue + " (голосов: " + ratingVotes + ")\n" + altName + document.select(".media-description__text").text()
+        manga.description = mediaNameLanguage + ratingStar + " " + ratingValue + " (голосов: " + ratingVotes + ")\n" + altName + document.select(".media-description__text").text()
         return manga
     }
 
@@ -329,9 +348,8 @@ class LibHentai : ConfigurableSource, HttpSource() {
 
         val nameChapter = chapterItem.jsonObject["chapter_name"]?.jsonPrimitive?.contentOrNull
         val fullNameChapter = "Том $volume. Глава $number"
-
         if (!sortingList.equals("ms_mixing")) {
-            chapter.scanlator = branches?.let { getScanlatorTeamName(it, chapterItem) } ?: chapterItem.jsonObject["username"]!!.jsonPrimitive.content
+            chapter.scanlator = branches?.let { getScanlatorTeamName(it, chapterItem) }
         }
         chapter.name = if (nameChapter.isNullOrBlank()) fullNameChapter else "$fullNameChapter - $nameChapter"
         chapter.date_upload = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -901,7 +919,7 @@ class LibHentai : ConfigurableSource, HttpSource() {
         val titleLanguagePref = ListPreference(screen.context).apply {
             key = LANGUAGE_PREF
             title = LANGUAGE_PREF_Title
-            entries = arrayOf("Английский (транскрипция)", "Русский")
+            entries = arrayOf("Английский", "Русский")
             entryValues = arrayOf("eng", "rus")
             summary = "%s"
             setDefaultValue("eng")

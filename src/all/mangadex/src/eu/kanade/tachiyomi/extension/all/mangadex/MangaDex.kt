@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.extension.all.mangadex.dto.AggregateDto
 import eu.kanade.tachiyomi.extension.all.mangadex.dto.AtHomeDto
 import eu.kanade.tachiyomi.extension.all.mangadex.dto.ChapterDto
 import eu.kanade.tachiyomi.extension.all.mangadex.dto.ChapterListDto
+import eu.kanade.tachiyomi.extension.all.mangadex.dto.ListDto
 import eu.kanade.tachiyomi.extension.all.mangadex.dto.MangaDto
 import eu.kanade.tachiyomi.extension.all.mangadex.dto.MangaListDto
 import eu.kanade.tachiyomi.network.GET
@@ -191,12 +192,22 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
     // SEARCH section
 
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
-        if (query.startsWith(MDConstants.prefixChSearch)) {
-            return getMangaIdFromChapterId(query.removePrefix(MDConstants.prefixChSearch)).flatMap { manga_id ->
-                super.fetchSearchManga(page, MDConstants.prefixIdSearch + manga_id, filters)
-            }
+        when {
+            query.startsWith(MDConstants.prefixChSearch) ->
+                return getMangaIdFromChapterId(query.removePrefix(MDConstants.prefixChSearch)).flatMap { manga_id ->
+                    super.fetchSearchManga(page, MDConstants.prefixIdSearch + manga_id, filters)
+                }
+            query.startsWith(MDConstants.prefixUsrSearch) ->
+                return client.newCall(searchMangaUploaderRequest(page, query.removePrefix(MDConstants.prefixUsrSearch)))
+                    .asObservableSuccess()
+                    .map { latestUpdatesParse(it) }
+            query.startsWith(MDConstants.prefixListSearch) ->
+                return client.newCall(GET(MDConstants.apiListUrl + "/" + query.removePrefix(MDConstants.prefixListSearch), headers, CacheControl.FORCE_NETWORK))
+                    .asObservableSuccess()
+                    .map { searchMangaListRequest(it, page) }
+            else ->
+                return super.fetchSearchManga(page, query, filters)
         }
-        return super.fetchSearchManga(page, query, filters)
     }
 
     private fun getMangaIdFromChapterId(id: String): Observable<String> {
@@ -215,39 +226,52 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
     }
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        if (query.startsWith(MDConstants.prefixIdSearch)) {
-            val url = MDConstants.apiMangaUrl.toHttpUrlOrNull()!!.newBuilder().apply {
-                addQueryParameter("ids[]", query.removePrefix(MDConstants.prefixIdSearch))
-                addQueryParameter("includes[]", MDConstants.coverArt)
-                addQueryParameter("contentRating[]", "safe")
-                addQueryParameter("contentRating[]", "suggestive")
-                addQueryParameter("contentRating[]", "erotica")
-                addQueryParameter("contentRating[]", "pornographic")
-            }.build().toString()
-
-            return GET(url, headers, CacheControl.FORCE_NETWORK)
-        }
-
         val tempUrl = MDConstants.apiMangaUrl.toHttpUrl().newBuilder().apply {
             addQueryParameter("limit", MDConstants.mangaLimit.toString())
             addQueryParameter("offset", (helper.getMangaListOffset(page)))
             addQueryParameter("includes[]", MDConstants.coverArt)
         }
 
-        if (query.startsWith(MDConstants.prefixGrpSearch)) {
-            val groupID = query.removePrefix(MDConstants.prefixGrpSearch)
-            if (!helper.containsUuid(groupID)) {
-                throw Exception("Not a valid group ID")
-            }
+        when {
+            query.startsWith(MDConstants.prefixIdSearch) -> {
+                val url = MDConstants.apiMangaUrl.toHttpUrlOrNull()!!.newBuilder().apply {
+                    addQueryParameter("ids[]", query.removePrefix(MDConstants.prefixIdSearch))
+                    addQueryParameter("includes[]", MDConstants.coverArt)
+                    addQueryParameter("contentRating[]", "safe")
+                    addQueryParameter("contentRating[]", "suggestive")
+                    addQueryParameter("contentRating[]", "erotica")
+                    addQueryParameter("contentRating[]", "pornographic")
+                }.build().toString()
 
-            tempUrl.apply {
-                addQueryParameter("group", groupID)
+                return GET(url, headers, CacheControl.FORCE_NETWORK)
             }
-        } else {
-            tempUrl.apply {
-                val actualQuery = query.replace(MDConstants.whitespaceRegex, " ")
-                if (actualQuery.isNotBlank()) {
-                    addQueryParameter("title", actualQuery)
+            query.startsWith(MDConstants.prefixGrpSearch) -> {
+                val groupID = query.removePrefix(MDConstants.prefixGrpSearch)
+                if (!helper.containsUuid(groupID)) {
+                    throw Exception("Not a valid group ID")
+                }
+
+                tempUrl.apply {
+                    addQueryParameter("group", groupID)
+                }
+            }
+            query.startsWith(MDConstants.prefixAuthSearch) -> {
+                val authorID = query.removePrefix(MDConstants.prefixAuthSearch)
+                if (!helper.containsUuid(authorID)) {
+                    throw Exception("Not a valid author ID")
+                }
+
+                tempUrl.apply {
+                    addQueryParameter("authors[]", authorID)
+                    addQueryParameter("artists[]", authorID)
+                }
+            }
+            else -> {
+                tempUrl.apply {
+                    val actualQuery = query.replace(MDConstants.whitespaceRegex, " ")
+                    if (actualQuery.isNotBlank()) {
+                        addQueryParameter("title", actualQuery)
+                    }
                 }
             }
         }
@@ -258,6 +282,90 @@ abstract class MangaDex(override val lang: String, val dexLang: String) :
     }
 
     override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+
+    private fun searchMangaListRequest(response: Response, page: Int): MangasPage {
+        if (response.isSuccessful.not()) {
+            throw Exception("HTTP ${response.code}")
+        }
+
+        val listDto = helper.json.decodeFromString<ListDto>(response.body!!.string())
+        val listDtoFiltered = listDto.data.relationships.filter { it.type != "Manga" }
+        val amount = listDtoFiltered.count()
+        if (amount < 1){
+            throw Exception("No Manga in List")
+        }
+        val minIndex = (page - 1) * MDConstants.mangaLimit
+
+        val url = MDConstants.apiMangaUrl.toHttpUrl().newBuilder().apply {
+            addQueryParameter("limit", MDConstants.mangaLimit.toString())
+            addQueryParameter("offset", "0")
+            addQueryParameter("includes[]", MDConstants.coverArt)
+        }
+        listDtoFiltered.forEachIndexed() { index, relationshipDto ->
+            if (index >= minIndex && index < (minIndex + MDConstants.mangaLimit)) {
+                url.addQueryParameter("ids[]", relationshipDto.id)
+            }
+        }
+
+        val request = client.newCall(GET(url.build().toString(), headers, CacheControl.FORCE_NETWORK))
+        val mangaList = searchMangaListParse(request.execute())
+        return MangasPage(mangaList, amount.toFloat() / MDConstants.mangaLimit - (page.toFloat() - 1) > 1)
+    }
+
+    private fun searchMangaListParse(response: Response): List<SManga> {
+        if (response.isSuccessful.not()) {
+            throw Exception("HTTP ${response.code}")
+        }
+
+        val mangaListDto = helper.json.decodeFromString<MangaListDto>(response.body!!.string())
+
+        val coverSuffix = preferences.getString(MDConstants.getCoverQualityPreferenceKey(dexLang), "")
+
+        val mangaList = mangaListDto.data.map { mangaDataDto ->
+            val fileName = mangaDataDto.relationships.firstOrNull { relationshipDto ->
+                relationshipDto.type.equals(MDConstants.coverArt, true)
+            }?.attributes?.fileName
+            helper.createBasicManga(mangaDataDto, fileName, coverSuffix, dexLang)
+        }
+
+        return mangaList
+    }
+
+    private fun searchMangaUploaderRequest(page: Int, uploader: String): Request {
+        val url = MDConstants.apiChapterUrl.toHttpUrlOrNull()!!.newBuilder().apply {
+            addQueryParameter("offset", helper.getLatestChapterOffset(page))
+            addQueryParameter("limit", MDConstants.latestChapterLimit.toString())
+            addQueryParameter("translatedLanguage[]", dexLang)
+            addQueryParameter("order[publishAt]", "desc")
+            addQueryParameter("includeFutureUpdates", "0")
+            addQueryParameter("uploader", uploader)
+            preferences.getStringSet(
+                MDConstants.getOriginalLanguagePrefKey(dexLang),
+                setOf()
+            )?.forEach {
+                addQueryParameter("originalLanguage[]", it)
+                // dex has zh and zh-hk for chinese manhua
+                if (it == MDConstants.originalLanguagePrefValChinese) {
+                    addQueryParameter("originalLanguage[]", MDConstants.originalLanguagePrefValChineseHk)
+                }
+            }
+            preferences.getStringSet(
+                MDConstants.getContentRatingPrefKey(dexLang),
+                MDConstants.contentRatingPrefDefaults
+            )?.forEach { addQueryParameter("contentRating[]", it) }
+            MDConstants.defaultBlockedGroups.forEach {
+                addQueryParameter("excludedGroups[]", it)
+            }
+            preferences.getString(
+                MDConstants.getBlockedGroupsPrefKey(dexLang), ""
+            )?.split(",")?.sorted()?.forEach { if (it.isNotEmpty()) addQueryParameter("excludedGroups[]", it.trim()) }
+            preferences.getString(
+                MDConstants.getBlockedUploaderPrefKey(dexLang),
+                ""
+            )?.split(", ")?.sorted()?.forEach { if (it.isNotEmpty()) addQueryParameter("excludedUploaders[]", it.trim()) }
+        }.build().toString()
+        return GET(url, headers, CacheControl.FORCE_NETWORK)
+    }
 
     // Manga Details section
 
