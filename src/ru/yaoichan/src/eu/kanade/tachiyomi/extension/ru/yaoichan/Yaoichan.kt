@@ -24,7 +24,7 @@ class Yaoichan : ParsedHttpSource() {
 
     override val lang = "ru"
 
-    override val supportsLatest = true
+    override val supportsLatest = false
 
     private val rateLimitInterceptor = RateLimitInterceptor(2)
 
@@ -33,9 +33,6 @@ class Yaoichan : ParsedHttpSource() {
 
     override fun popularMangaRequest(page: Int): Request =
         GET("$baseUrl/mostfavorites?offset=${20 * (page - 1)}", headers)
-
-    override fun latestUpdatesRequest(page: Int): Request =
-        GET("$baseUrl/manga/new?offset=${20 * (page - 1)}", headers)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = if (query.isNotEmpty()) {
@@ -105,27 +102,26 @@ class Yaoichan : ParsedHttpSource() {
 
     override fun popularMangaSelector() = "div.content_row"
 
-    override fun latestUpdatesSelector() = popularMangaSelector()
-
     override fun searchMangaSelector() = popularMangaSelector()
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
         manga.thumbnail_url = element.select("div.manga_images img").first().attr("src")
+        manga.title = element.attr("title")
         element.select("h2 > a").first().let {
             manga.setUrlWithoutDomain(it.attr("href"))
-            manga.title = it.text()
         }
         return manga
     }
 
-    override fun latestUpdatesFromElement(element: Element): SManga = popularMangaFromElement(element)
+    override fun latestUpdatesRequest(page: Int): Request = throw UnsupportedOperationException("Not used")
+    override fun latestUpdatesSelector() = throw UnsupportedOperationException("Not used")
+    override fun latestUpdatesFromElement(element: Element) = throw UnsupportedOperationException("Not used")
+    override fun latestUpdatesNextPageSelector() = throw UnsupportedOperationException("Not used")
 
     override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
 
     override fun popularMangaNextPageSelector() = "a:contains(Вперед)"
-
-    override fun latestUpdatesNextPageSelector() = popularMangaNextPageSelector()
 
     override fun searchMangaNextPageSelector() = "a:contains(Далее), ${popularMangaNextPageSelector()}"
 
@@ -140,10 +136,11 @@ class Yaoichan : ParsedHttpSource() {
             "манга"
         }
         val manga = SManga.create()
+        manga.title = document.select("title").text().substringBefore(" »")
         manga.author = infoElement.select("tr:eq(2) > td:eq(1)").text()
         manga.genre = infoElement.select("tr:eq(5) > td:eq(1)").text().split(",").plusElement(category).joinToString { it.trim() }
         manga.status = parseStatus(infoElement.select("tr:eq(4) > td:eq(1)").text())
-        manga.description = descElement.textNodes().first().text()
+        manga.description = descElement.textNodes().first().text().trim()
         manga.thumbnail_url = imgElement.attr("src")
         return manga
     }

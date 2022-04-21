@@ -9,13 +9,15 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservable
 import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SManga
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -24,6 +26,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.Exception
 
@@ -32,13 +35,14 @@ class NeoxScanlator :
         "Neox Scanlator",
         DEFAULT_BASE_URL,
         "pt-BR",
-        SimpleDateFormat("MMMMM dd, yyyy", Locale("pt", "BR"))
+        SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
     ),
     ConfigurableSource {
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .connectTimeout(1, TimeUnit.MINUTES)
         .readTimeout(1, TimeUnit.MINUTES)
+        .addInterceptor(::titleCollectionIntercept)
         .addInterceptor(RateLimitInterceptor(1, 2, TimeUnit.SECONDS))
         .build()
 
@@ -52,16 +56,41 @@ class NeoxScanlator :
         preferences.getString(BASE_URL_PREF_KEY, DEFAULT_BASE_URL)!!
     }
 
+    private var titleCollectionPath: String? = null
+
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .add("Accept", ACCEPT)
         .add("Accept-Language", ACCEPT_LANGUAGE)
         .add("Referer", REFERER)
 
-    override fun searchMangaParse(response: Response): MangasPage {
-        val mangaPage = super.searchMangaParse(response)
-        val filteredResult = mangaPage.mangas.filter { it.title.contains(NOVEL_REGEX).not() }
+    override fun popularMangaParse(response: Response): MangasPage {
+        val popularPage = super.popularMangaParse(response)
 
-        return MangasPage(filteredResult, mangaPage.hasNextPage)
+        titleCollectionPath = popularPage.mangas.firstOrNull()?.url
+            ?.removePrefix("/")
+            ?.substringBefore("/")
+
+        return popularPage
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val latestPage = super.latestUpdatesParse(response)
+
+        titleCollectionPath = latestPage.mangas.firstOrNull()?.url
+            ?.removePrefix("/")
+            ?.substringBefore("/")
+
+        return latestPage
+    }
+
+    override fun searchMangaParse(response: Response): MangasPage {
+        val searchPage = super.searchMangaParse(response)
+
+        titleCollectionPath = searchPage.mangas.firstOrNull()?.url
+            ?.removePrefix("/")
+            ?.substringBefore("/")
+
+        return searchPage
     }
 
     // Sometimes the site changes the manga URL. This override will
@@ -81,6 +110,25 @@ class NeoxScanlator :
             }
     }
 
+    override fun mangaDetailsRequest(manga: SManga): Request {
+        val mangaSlug = manga.url.removePrefix("/").substringAfter("/")
+        val mangaUrl = "/" + (titleCollectionPath ?: TITLE_PATH_PLACEHOLDER) + "/" + mangaSlug
+
+        return GET(baseUrl + mangaUrl, headers)
+    }
+
+    override fun xhrChaptersRequest(mangaUrl: String): Request {
+        val xhrHeaders = headersBuilder()
+            .add("Referer", baseUrl)
+            .add("X-Requested-With", "XMLHttpRequest")
+            .build()
+
+        val mangaSlug = mangaUrl.toHttpUrl().pathSegments[1]
+        val fixedUrl = (titleCollectionPath ?: TITLE_PATH_PLACEHOLDER) + "/" + mangaSlug
+
+        return POST("$baseUrl/$fixedUrl/ajax/chapters", xhrHeaders)
+    }
+
     override fun imageRequest(page: Page): Request {
         val newHeaders = headersBuilder()
             .set("Accept", ACCEPT_IMAGE)
@@ -89,9 +137,6 @@ class NeoxScanlator :
 
         return GET(page.imageUrl!!, newHeaders)
     }
-
-    // Only status and order by filter work.
-    override fun getFilterList(): FilterList = FilterList(super.getFilterList().slice(3..4))
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         val baseUrlPref = EditTextPreference(screen.context).apply {
@@ -119,6 +164,34 @@ class NeoxScanlator :
         screen.addPreference(baseUrlPref)
     }
 
+    private fun titleCollectionIntercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+
+        if (!request.url.toString().contains(TITLE_PATH_PLACEHOLDER)) {
+            return chain.proceed(request)
+        }
+
+        val titlePathResult = runCatching {
+            val popularResponse = chain.proceed(popularMangaRequest(1))
+            val popularPage = popularMangaParse(popularResponse)
+
+            popularPage.mangas.firstOrNull()?.url
+                ?.removePrefix("/")
+                ?.substringBefore("/")
+        }
+
+        titleCollectionPath = titlePathResult.getOrNull()
+
+        val fixedUrl = request.url.toString()
+            .replace(TITLE_PATH_PLACEHOLDER, titleCollectionPath ?: "comicz")
+
+        val fixedRequest = request.newBuilder()
+            .url(fixedUrl)
+            .build()
+
+        return chain.proceed(fixedRequest)
+    }
+
     companion object {
         private const val MIGRATION_MESSAGE = "O URL deste mangá mudou. " +
             "Faça a migração do Neox para o Neox para atualizar a URL."
@@ -137,6 +210,6 @@ class NeoxScanlator :
 
         private const val RESTART_TACHIYOMI = "Reinicie o Tachiyomi para aplicar as configurações."
 
-        private val NOVEL_REGEX = "novel|livro".toRegex(RegexOption.IGNORE_CASE)
+        private val TITLE_PATH_PLACEHOLDER = UUID.randomUUID().toString()
     }
 }

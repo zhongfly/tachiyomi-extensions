@@ -15,8 +15,8 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
-import kotlinx.serialization.decodeFromByteArray
-import kotlinx.serialization.protobuf.ProtoBuf
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -29,6 +29,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.injectLazy
 import java.util.UUID
 
 abstract class MangaPlus(
@@ -56,6 +57,8 @@ abstract class MangaPlus(
         .addInterceptor(SpecificHostRateLimitInterceptor(baseUrl.toHttpUrl(), 2))
         .build()
 
+    private val json: Json by injectLazy()
+
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
@@ -73,14 +76,13 @@ abstract class MangaPlus(
             .set("Referer", "$baseUrl/manga_list/hot")
             .build()
 
-        return GET("$API_URL/title_list/ranking", newHeaders)
+        return GET("$API_URL/title_list/ranking?format=json", newHeaders)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         titleList = result.success.titleRankingView!!.titles
             .filter { it.language == langCode }
@@ -101,17 +103,17 @@ abstract class MangaPlus(
             .set("Referer", "$baseUrl/updates")
             .build()
 
-        return GET("$API_URL/web/web_homeV3?lang=$internalLang", newHeaders)
+        return GET("$API_URL/web/web_homeV3?lang=$internalLang&format=json", newHeaders)
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         // Fetch all titles to get newer thumbnail URLs in the interceptor.
-        val popularResponse = client.newCall(popularMangaRequest(1)).execute().asProto()
+        val popularResponse = client.newCall(popularMangaRequest(1)).execute()
+            .asMangaPlusResponse()
 
         if (popularResponse.success != null) {
             titleList = popularResponse.success.titleRankingView!!.titles
@@ -143,7 +145,7 @@ abstract class MangaPlus(
                 }
 
                 val filteredResult = it.mangas.filter { manga ->
-                    manga.title.contains(query, true)
+                    manga.title.contains(query.trim(), true)
                 }
 
                 MangasPage(filteredResult, it.hasNextPage)
@@ -159,29 +161,26 @@ abstract class MangaPlus(
             .set("Referer", "$baseUrl/manga_list/all")
             .build()
 
-        return GET("$API_URL/title_list/allV2", newHeaders)
+        return GET("$API_URL/title_list/allV2?format=json", newHeaders)
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         if (result.success.titleDetailView != null) {
             val mangaPlusTitle = result.success.titleDetailView.title
+                .takeIf { it.language == langCode }
+                ?: return MangasPage(emptyList(), hasNextPage = false)
 
-            if (mangaPlusTitle.language == langCode) {
-                val manga = SManga.create().apply {
-                    title = mangaPlusTitle.name
-                    thumbnail_url = mangaPlusTitle.portraitImageUrl
-                    url = "#/titles/${mangaPlusTitle.titleId}"
-                }
-
-                return MangasPage(listOf(manga), hasNextPage = false)
+            val manga = SManga.create().apply {
+                title = mangaPlusTitle.name
+                thumbnail_url = mangaPlusTitle.portraitImageUrl
+                url = "#/titles/${mangaPlusTitle.titleId}"
             }
 
-            return MangasPage(emptyList(), hasNextPage = false)
+            return MangasPage(listOf(manga), hasNextPage = false)
         }
 
         titleList = result.success.allTitlesViewV2!!.allTitlesGroup
@@ -206,7 +205,7 @@ abstract class MangaPlus(
             .set("Referer", "$baseUrl/titles/$titleId")
             .build()
 
-        return GET("$API_URL/title_detail?title_id=$titleId", newHeaders)
+        return GET("$API_URL/title_detail?title_id=$titleId&format=json", newHeaders)
     }
 
     // Workaround to allow "Open in browser" use the real URL.
@@ -224,10 +223,9 @@ abstract class MangaPlus(
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         val details = result.success.titleDetailView!!
         val title = details.title
@@ -245,10 +243,9 @@ abstract class MangaPlus(
     override fun chapterListRequest(manga: SManga): Request = titleDetailsRequest(manga.url)
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         val titleDetailView = result.success.titleDetailView!!
 
@@ -278,21 +275,21 @@ abstract class MangaPlus(
             .addQueryParameter("chapter_id", chapterId)
             .addQueryParameter("split", if (splitImages) "yes" else "no")
             .addQueryParameter("img_quality", imageQuality)
+            .addQueryParameter("format", "json")
             .toString()
 
         return GET(url, newHeaders)
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val result = response.asProto()
+        val result = response.asMangaPlusResponse()
 
-        if (result.success == null)
-            throw Exception(result.error!!.langPopup.body)
+        checkNotNull(result.success) { result.error!!.langPopup(langCode).body }
 
         val referer = response.request.header("Referer")!!
 
         return result.success.mangaViewer!!.pages
-            .mapNotNull(MangaPlusPage::page)
+            .mapNotNull(MangaPlusPage::mangaPage)
             .mapIndexed { i, page ->
                 val encryptionKey = if (page.encryptionKey == null) "" else
                     "&encryptionKey=${page.encryptionKey}"
@@ -412,20 +409,14 @@ abstract class MangaPlus(
         return response
     }
 
-    private val ErrorResult.langPopup: Popup
-        get() = when (internalLang) {
-            "esp" -> spanishPopup
-            else -> englishPopup
-        }
-
-    private fun Response.asProto(): MangaPlusResponse = use {
-        ProtoBuf.decodeFromByteArray(body!!.bytes())
+    private fun Response.asMangaPlusResponse(): MangaPlusResponse = use {
+        json.decodeFromString(body!!.string())
     }
 
     companion object {
         private const val API_URL = "https://jumpg-webapi.tokyo-cdn.com/api"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.3"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36"
 
         private const val QUALITY_PREF_KEY = "imageResolution"
         private const val QUALITY_PREF_TITLE = "Image quality"

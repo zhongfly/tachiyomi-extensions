@@ -35,7 +35,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("TurkToon", "https://turktoon.com", "tr"),
         SingleLang("Gecenin Lordu", "https://geceninlordu.com", "tr", overrideVersionCode = 1),
         SingleLang("PMScans", "http://www.rackusreader.org", "en", overrideVersionCode = 2),
-        SingleLang("Realm Scans", "https://realmscans.com", "en", overrideVersionCode = 2),
+        SingleLang("Realm Scans", "https://realmscans.com", "en", overrideVersionCode = 3),
         SingleLang("Skull Scans", "https://www.skullscans.com", "en", overrideVersionCode = 1),
         SingleLang("Shimada Scans", "https://shimadascans.com", "en"),
         SingleLang("Shooting Star Scans", "https://shootingstarscans.com", "en", overrideVersionCode = 3),
@@ -51,6 +51,8 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Tsundoku Traduções", "https://tsundoku.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 9),
         SingleLang("Komik Lab", "https://komiklab.com", "id"),
         SingleLang("Arcane scan", "https://arcanescan.fr", "fr"),
+        SingleLang("Franxx Mangás", "https://franxxmangas.net", "pt-BR", className = "FranxxMangas", isNsfw = true),
+        SingleLang("Origami Orpheans", "https://origami-orpheans.com.br", "pt-BR", overrideVersionCode = 9),
     )
 
     companion object {

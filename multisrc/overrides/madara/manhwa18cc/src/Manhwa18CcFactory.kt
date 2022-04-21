@@ -32,6 +32,9 @@ abstract class Manhwa18Cc(
     lang: String
 ) : Madara(name, baseUrl, lang) {
 
+    override val useLoadMoreSearch = false
+    override val fetchGenres = false
+
     override fun popularMangaSelector() = "div.manga-item"
     override val popularMangaUrlSelector = "div.data > h3 > a"
     override fun popularMangaNextPageSelector() = "ul.pagination > li > a"

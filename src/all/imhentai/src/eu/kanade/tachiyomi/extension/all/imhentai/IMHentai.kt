@@ -11,29 +11,44 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
+import java.io.IOException
 
 class IMHentai(override val lang: String, private val imhLang: String) : ParsedHttpSource() {
-
-    private val pageLoadHeaders: Headers = Headers.Builder().apply {
-        add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-        add("X-Requested-With", "XMLHttpRequest")
-    }.build()
 
     override val baseUrl: String = "https://imhentai.xxx"
     override val name: String = "IMHentai"
     override val supportsLatest = true
 
     override val client: OkHttpClient = network.cloudflareClient
+        .newBuilder()
+        .addInterceptor(
+            fun(chain): Response {
+                val response = chain.proceed(chain.request())
+                if (!response.headers("Content-Type").toString().contains("text/html")) return response
+
+                val responseContentType = response.body!!.contentType()
+                val responseString = response.body!!.string()
+
+                if (responseString.contains("Overload... Please use the advanced search")) {
+                    response.close()
+                    throw IOException("IMHentai search is overloaded try again later")
+                }
+
+                return response.newBuilder()
+                    .body(responseString.toResponseBody(responseContentType))
+                    .build()
+            }
+        ).build()
 
     // Popular
 

@@ -8,6 +8,7 @@ import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.asObservable
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
@@ -63,6 +64,8 @@ class LibHentai : ConfigurableSource, HttpSource() {
     override val baseUrl = "https://hentailib.me"
 
     override fun headersBuilder() = Headers.Builder().apply {
+        // User-Agent required for authorization through third-party accounts (mobile version for correct display in WebView)
+        add("User-Agent", "Mozilla/5.0 (Linux; Android 10; SM-G980F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Mobile Safari/537.36")
         add("Accept", "image/webp,*/*;q=0.8")
         add("Referer", baseUrl)
     }
@@ -89,7 +92,7 @@ class LibHentai : ConfigurableSource, HttpSource() {
             val originalRequest = chain.request()
             if (originalRequest.url.toString().contains(baseUrl))
                 if (!authClient.newCall(GET(baseUrl, headers))
-                    .execute().body!!.string().contains("header-right-menu__avatar")
+                    .execute().body!!.string().contains("m-menu__user-info")
                 )
                     throw Exception("Для просмотра 18+ контента необходима авторизация через WebView")
             return@addInterceptor chain.proceed(originalRequest)
@@ -110,7 +113,7 @@ class LibHentai : ConfigurableSource, HttpSource() {
     private fun latestUpdatesFromElement(element: Element): SManga {
         val manga = SManga.create()
         element.select("div.cover").first().let { img ->
-            manga.thumbnail_url = img.attr("data-src").replace("_thumb", "_250x350")
+            manga.thumbnail_url = baseUrl + img.attr("data-src").replace("_thumb", "_250x350")
         }
 
         element.select("a").first().let { link ->
@@ -148,7 +151,12 @@ class LibHentai : ConfigurableSource, HttpSource() {
 
     private fun fetchPopularMangaFromApi(page: Int): Observable<MangasPage> {
         return client.newCall(POST("$baseUrl/filterlist?dir=desc&sort=views&page=$page", catalogHeaders()))
-            .asObservableSuccess()
+            .asObservable().doOnNext { response ->
+                if (!response.isSuccessful) {
+                    response.close()
+                    if (response.code == 419) throw Exception("Для завершения авторизации необходимо перезапустить приложение с полной остановкой.") else throw Exception("HTTP error ${response.code}")
+                }
+            }
             .map { response ->
                 popularMangaParse(response)
             }
@@ -168,15 +176,13 @@ class LibHentai : ConfigurableSource, HttpSource() {
     }
 
     private fun popularMangaFromElement(el: JsonElement) = SManga.create().apply {
-        val slug = el.jsonObject["slug"]!!.jsonPrimitive.content
-        val cover = el.jsonObject["cover"]!!.jsonPrimitive.content
         title = when {
             isEng.equals("rus") && el.jsonObject["rus_name"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> el.jsonObject["rus_name"]!!.jsonPrimitive.content
             isEng.equals("eng") && el.jsonObject["eng_name"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> el.jsonObject["eng_name"]!!.jsonPrimitive.content
             else -> el.jsonObject["name"]!!.jsonPrimitive.content
         }
-        thumbnail_url = "$COVER_URL/huploads/cover/$slug/cover/${cover}_250x350.jpg"
-        url = "/$slug"
+        thumbnail_url = baseUrl + el.jsonObject["covers"]!!.jsonObject["default"]!!.jsonPrimitive.content
+        url = "/" + el.jsonObject["slug"]!!.jsonPrimitive.content
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
@@ -203,8 +209,8 @@ class LibHentai : ConfigurableSource, HttpSource() {
             rawAgeStop = "0+"
         }
 
-        val ratingValue = document.select(".media-rating.media-rating_lg div.media-rating__value").text().toFloat() * 2
-        val ratingVotes = document.select(".media-rating.media-rating_lg div.media-rating__votes").text()
+        val ratingValue = document.select(".media-rating__value").last().text().toFloat() * 2
+        val ratingVotes = document.select(".media-rating__votes").last().text()
         val ratingStar = when {
             ratingValue > 9.5 -> "★★★★★"
             ratingValue > 8.5 -> "★★★★✬"
@@ -224,7 +230,7 @@ class LibHentai : ConfigurableSource, HttpSource() {
             isEng.equals("eng") && dataManga!!.jsonObject["engName"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> dataManga.jsonObject["engName"]!!.jsonPrimitive.content
             else -> dataManga!!.jsonObject["name"]!!.jsonPrimitive.content
         }
-        manga.thumbnail_url = document.select(".media-sidebar__cover > img").attr("src")
+        manga.thumbnail_url = document.select(".media-header__cover").attr("src")
         manga.author = body.select("div.media-info-list__title:contains(Автор) + div").text()
         manga.artist = body.select("div.media-info-list__title:contains(Художник) + div").text()
         manga.status = if (document.html().contains("paper empty section")
