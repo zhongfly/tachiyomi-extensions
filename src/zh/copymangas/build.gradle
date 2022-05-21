@@ -5,7 +5,7 @@ ext {
     extName = 'CopyMangas'
     pkgNameSuffix = 'zh.copymangas'
     extClass = '.CopyMangas'
-    extVersionCode = 20
+    extVersionCode = 21
 }
 apply from: "$rootDir/common.gradle"
 

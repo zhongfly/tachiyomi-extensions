@@ -29,7 +29,7 @@ import javax.net.ssl.X509TrustManager
 class CopyMangas : ConfigurableSource, HttpSource() {
 
     override val name = "拷贝漫画"
-    override val baseUrl = "https://api.copymanga.info"
+    override val baseUrl = "https://api.copymanga.org"
     override val lang = "zh"
     override val supportsLatest = true
     private val searchPageSize = 18 // default
@@ -233,7 +233,7 @@ class CopyMangas : ConfigurableSource, HttpSource() {
     override fun headersBuilder() = super.headersBuilder()
         .set("User-Agent", "Dart/2.15(dart:io)")
         .set("source", "copyApp")
-        .set("version", "1.2.8")
+        .set("version", "1.3.5")
         .set("region", if (preferences.getBoolean(CHANGE_CDN_OVERSEAS, false)) "0" else "1")
         .set("webp", if (preferences.getBoolean(CHANGE_WEBP_OPTION, false)) "1" else "0")
         .set("authorization", "Token")
