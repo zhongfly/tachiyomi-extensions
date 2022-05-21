@@ -25,6 +25,7 @@ import org.jsoup.nodes.Element
 import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.IOException
 import java.text.DecimalFormat
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -54,7 +55,7 @@ class AllHentai : ConfigurableSource, ParsedHttpSource() {
             val originalRequest = chain.request()
             val response = chain.proceed(originalRequest)
             if (originalRequest.url.toString().contains(baseUrl) and (originalRequest.url.toString().contains("internal/redirect") or (response.code == 301)))
-                throw Exception("Манга переехала на другой адрес/ссылку!")
+                throw IOException("Манга переехала на другой адрес/ссылку!")
             response
         }
         .build()
@@ -152,7 +153,7 @@ class AllHentai : ConfigurableSource, ParsedHttpSource() {
         manga.title = document.select("h1.names .name").text()
         manga.author = authorElement
         manga.artist = infoElement.select("span.elem_illustrator").first()?.text()
-        manga.genre = infoElement.select("span.elem_genre").text().split(",").plusElement(category).joinToString { it.trim() }
+        manga.genre = category + ", " + infoElement.select("span.elem_genre").text().split(",").joinToString { it.trim() }
         manga.description = document.select("div#tab-description  .manga-description").text()
         manga.status = parseStatus(infoElement.html())
         manga.thumbnail_url = infoElement.select("img").attr("data-full")
@@ -183,7 +184,7 @@ class AllHentai : ConfigurableSource, ParsedHttpSource() {
         return document.select(chapterListSelector()).map { chapterFromElement(it, manga) }
     }
 
-    override fun chapterListSelector() = "div.chapters-link > table > tbody > tr:has(td > a)"
+    override fun chapterListSelector() = "div.chapters-link > table > tbody > tr:has(td > a):has(td.date:not(.text-info))"
 
     private fun chapterFromElement(element: Element, manga: SManga): SChapter {
         val urlElement = element.select("a").first()

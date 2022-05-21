@@ -15,6 +15,7 @@ import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.io.IOException
 import java.text.DecimalFormat
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -39,7 +40,7 @@ class Selfmanga : ParsedHttpSource() {
             val originalRequest = chain.request()
             val response = chain.proceed(originalRequest)
             if (originalRequest.url.toString().contains(baseUrl) and (originalRequest.url.toString().contains("internal/redirect") or (response.code == 301)))
-                throw Exception("Манга переехала на другой адрес/ссылку!")
+                throw IOException("Манга переехала на другой адрес/ссылку!")
             response
         }
         .build()
@@ -106,7 +107,7 @@ class Selfmanga : ParsedHttpSource() {
         val manga = SManga.create()
         manga.title = document.select("h1.names .name").text()
         manga.author = infoElement.select("span.elem_author").first()?.text()
-        manga.genre = infoElement.select("span.elem_genre").text().replace(" ,", ",")
+        manga.genre = infoElement.select("span.elem_genre").text().split(",").joinToString { it.trim() }
         manga.description = document.select("div#tab-description  .manga-description").text()
         manga.status = parseStatus(infoElement.html())
         manga.thumbnail_url = infoElement.select("img").attr("data-full")
@@ -120,7 +121,7 @@ class Selfmanga : ParsedHttpSource() {
         else -> SManga.UNKNOWN
     }
 
-    override fun chapterListSelector() = "div.chapters-link tbody tr"
+    override fun chapterListSelector() = "div.chapters-link > table > tbody > tr:has(td > a):has(td.date:not(.text-info))"
 
     override fun chapterFromElement(element: Element): SChapter {
         val urlElement = element.select("a").first()
@@ -137,7 +138,7 @@ class Selfmanga : ParsedHttpSource() {
 
         chapter.chapter_number = chapterInf.attr("data-num").toFloat() / 10
 
-        chapter.date_upload = element.select("td.hidden-xxs").last()?.text()?.let {
+        chapter.date_upload = element.select("td.d-none").last()?.text()?.let {
             try {
                 SimpleDateFormat("dd/MM/yy", Locale.US).parse(it)?.time ?: 0L
             } catch (e: ParseException) {

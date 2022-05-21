@@ -10,6 +10,7 @@ class MMRCMSSources {
             abstract val isNsfw: Boolean
             abstract val className: String
             abstract val pkgName: String
+            abstract val sourceName: String
             abstract val overrideVersionCode: Int
 
             data class Single(
@@ -19,6 +20,7 @@ class MMRCMSSources {
                 override val isNsfw: Boolean = false,
                 override val className: String = name.replace(" ", ""),
                 override val pkgName: String = className.toLowerCase(Locale.ENGLISH),
+                override val sourceName: String = name,
                 override val overrideVersionCode: Int = 0,
             ) : SourceData()
 
@@ -29,6 +31,7 @@ class MMRCMSSources {
                 override val isNsfw: Boolean = false,
                 override val className: String = name.replace(" ", "") + "Factory",
                 override val pkgName: String = className.substringBefore("Factory").toLowerCase(Locale.ENGLISH),
+                override val sourceName: String = name,
                 override val overrideVersionCode: Int = 0,
             ) : SourceData()
         }
@@ -53,13 +56,12 @@ class MMRCMSSources {
             SourceData.Single("Puzzmos", "https://puzzmos.com", "tr", overrideVersionCode = 1),
             SourceData.Single("Scan-1", "https://wwv.scan-1.com", "fr", className = "ScanOne", overrideVersionCode = 1),
             SourceData.Single("Lelscan-VF", "https://lelscan-vf.co", "fr", className = "LelscanVF"),
-            SourceData.Single("Komik Manga", "https://adm.komikmanga.com", "id"),
             SourceData.Single("Mangazuki Raws", "https://raws.mangazuki.co", "ko", overrideVersionCode = 1),
             SourceData.Single("Mangazuki", "https://mangazuki.co", "en", overrideVersionCode = 1),
             SourceData.Single("AnimaRegia", "https://animaregia.net", "pt-BR", overrideVersionCode = 4),
             SourceData.Single("MangaVadisi", "http://manga-v2.mangavadisi.org", "tr", overrideVersionCode = 1),
             SourceData.Single("MangaID", "https://mangaid.click", "id", overrideVersionCode = 1),
-            SourceData.Single("Jpmangas", "https://jpmangas.co", "fr"),
+            SourceData.Single("Jpmangas", "https://jpmangas.cc", "fr", overrideVersionCode = 1),
             SourceData.Single("Op-VF", "https://www.op-vf.com", "fr", className = "OpVF"),
             SourceData.Single("FR Scan", "https://frscan.cc", "fr", overrideVersionCode = 1),
             SourceData.Single("Ama Scans", "https://amascan.com", "pt-BR", isNsfw = true, overrideVersionCode = 2),
