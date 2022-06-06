@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.extension.fr.furyosquad
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -31,12 +31,10 @@ class FuryoSquad : ParsedHttpSource() {
 
     override val supportsLatest = true
 
-    private val rateLimitInterceptor = RateLimitInterceptor(1)
-
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        .addNetworkInterceptor(rateLimitInterceptor)
+        .rateLimit(1)
         .build()
 
     // Popular
@@ -123,7 +121,7 @@ class FuryoSquad : ParsedHttpSource() {
 
         document.select("div.comic-info").let {
             it.select("p.fs-comic-label").forEach { el ->
-                when (el.text().toLowerCase(Locale.ROOT)) {
+                when (el.text().lowercase(Locale.ROOT)) {
                     "scénario" -> manga.author = el.nextElementSibling().text()
                     "dessins" -> manga.artist = el.nextElementSibling().text()
                     "genre" -> manga.genre = el.nextElementSibling().text()
@@ -151,7 +149,7 @@ class FuryoSquad : ParsedHttpSource() {
     }
 
     private fun parseChapterDate(date: String): Long {
-        val lcDate = date.toLowerCase(Locale.ROOT)
+        val lcDate = date.lowercase(Locale.ROOT)
         if (lcDate.startsWith("il y a"))
             parseRelativeDate(lcDate).let { return it }
 

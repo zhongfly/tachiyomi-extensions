@@ -1,12 +1,12 @@
 package eu.kanade.tachiyomi.extension.en.warforrayuba
 
 import android.os.Build
-import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.AppInfo
 import eu.kanade.tachiyomi.extension.en.warforrayuba.dto.PageDto
 import eu.kanade.tachiyomi.extension.en.warforrayuba.dto.RoundDto
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -32,7 +32,8 @@ class WarForRayuba : HttpSource() {
     override val supportsLatest = false
 
     override val client = network.cloudflareClient.newBuilder()
-        .addNetworkInterceptor(RateLimitInterceptor(4)).build()
+        .rateLimit(4)
+        .build()
 
     private val json = Json {
         isLenient = true
@@ -47,7 +48,7 @@ class WarForRayuba : HttpSource() {
             "User-Agent",
             "(Android ${Build.VERSION.RELEASE}; " +
                 "${Build.MANUFACTURER} ${Build.MODEL}) " +
-                "Tachiyomi/${BuildConfig.VERSION_NAME} " +
+                "Tachiyomi/${AppInfo.getVersionName()} " +
                 Build.ID
         )
     }.build()

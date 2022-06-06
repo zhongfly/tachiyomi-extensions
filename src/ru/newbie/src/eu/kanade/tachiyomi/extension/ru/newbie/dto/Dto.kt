@@ -1,25 +1,34 @@
 import kotlinx.serialization.Serializable
 
+// Catalog API
 @Serializable
-data class TagsDto(
-    val title: TitleDto
+data class PageWrapperDto<T>(
+    val items: List<T>,
 )
 
 @Serializable
-data class BranchesDto(
+data class LibraryDto(
     val id: Long,
-    val is_default: Boolean
+    val title: TitleDto,
+    val image: ImgDto
 )
 
+// Manga Details
 @Serializable
-data class ImgsDto(
-    val large: String,
-    val small: String,
-)
-
-@Serializable
-data class ImgDto(
-    val srcset: ImgsDto,
+data class MangaDetDto(
+    val id: Long,
+    val title: TitleDto,
+    val author: AuthorDto?,
+    val artist: AuthorDto?,
+    val description: String,
+    val image: ImgDto,
+    val genres: List<TagsDto>,
+    val type: String,
+    val status: String,
+    val rating: Float,
+    val hearts: Long,
+    val adult: String?,
+    val branches: List<BranchesDto>,
 )
 
 @Serializable
@@ -34,33 +43,28 @@ data class AuthorDto(
 )
 
 @Serializable
-data class LibraryDto(
-    val id: Long,
-    val title: TitleDto,
-    val image: ImgDto
+data class ImgDto(
+    val srcset: ImgsDto,
 )
 
 @Serializable
-data class MangaDetDto(
-    val id: Long,
-    val title: TitleDto,
-    val author: AuthorDto?,
-    val artist: AuthorDto?,
-    val description: String,
-    val image: ImgDto,
-    val genres: List<TagsDto>,
-    val type: String,
-    val status: String,
-    val rating: Float,
-    val adult: String?,
-    val branches: List<BranchesDto>,
+data class ImgsDto(
+    val large: String,
+    val small: String,
 )
 
 @Serializable
-data class PageWrapperDto<T>(
-    val items: List<T>,
+data class TagsDto(
+    val title: TitleDto
 )
 
+@Serializable
+data class BranchesDto(
+    val id: Long,
+    val is_default: Boolean
+)
+
+// Chapters
 @Serializable
 data class SeriesWrapperDto<T>(
     val items: T
@@ -81,4 +85,28 @@ data class BookDto(
 data class PageDto(
     val id: Int,
     val slices: Int?
+)
+
+// Search NEO in POST Request
+@Serializable
+data class SearchWrapperDto<T>(
+    val result: T,
+)
+
+@Serializable
+data class SubSearchDto<T>(
+    val hits: List<T>,
+)
+
+@Serializable
+data class SearchLibraryDto(
+    val document: DocElementsDto,
+)
+
+@Serializable
+data class DocElementsDto(
+    val id: String,
+    val title_en: String,
+    val image_large: String,
+    val image_small: String
 )

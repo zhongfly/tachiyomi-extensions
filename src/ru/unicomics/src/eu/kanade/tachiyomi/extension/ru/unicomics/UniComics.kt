@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.extension.ru.unicomics
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -35,7 +35,7 @@ class UniComics : ParsedHttpSource() {
     override val client: OkHttpClient = network.client.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        .addNetworkInterceptor(RateLimitInterceptor(3))
+        .rateLimit(3)
         .build()
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
@@ -241,7 +241,7 @@ class UniComics : ParsedHttpSource() {
         element.select(".list_title").first().text().let {
             val titleNoPrefix = it.removePrefix(manga.title).removePrefix(":").trim()
             chapter.name = if (titleNoPrefix.isNotEmpty())
-                titleNoPrefix.replaceFirst(titleNoPrefix.first(), titleNoPrefix.first().toUpperCase())
+                titleNoPrefix.replaceFirst(titleNoPrefix.first(), titleNoPrefix.first().uppercaseChar())
             else
                 "Сингл"
             if (titleNoPrefix.contains("№")) {

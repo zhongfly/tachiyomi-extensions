@@ -124,7 +124,7 @@ apply from: "$rootDir/common.gradle"
 | `pkgNameSuffix` | A unique suffix added to `eu.kanade.tachiyomi.extension`. The language and the site name should be enough. Remember your extension code implementation must be placed in this package. |
 | `extClass` | Points to the class that implements `Source`. You can use a relative path starting with a dot (the package name is the base path). This is used to find and instantiate the source(s). |
 | `extVersionCode` | The extension version code. This must be a positive integer and incremented with any change to the code. |
-| `libVersion` | (Optional, defaults to `1.2`) The version of the [extensions library](https://github.com/tachiyomiorg/extensions-lib) used. |
+| `libVersion` | (Optional, defaults to `1.3`) The version of the [extensions library](https://github.com/tachiyomiorg/extensions-lib) used. |
 | `isNsfw` | (Optional, defaults to `false`) Flag to indicate that a source contains NSFW content. |
 
 The extension's version name is generated automatically by concatenating `libVersion` and `extVersionCode`. With the example used above, the version would be `1.2.1`.
@@ -134,16 +134,6 @@ The extension's version name is generated automatically by concatenating `libVer
 #### Extension API
 
 Extensions rely on [extensions-lib](https://github.com/tachiyomiorg/extensions-lib), which provides some interfaces and stubs from the [app](https://github.com/tachiyomiorg/tachiyomi) for compilation purposes. The actual implementations can be found [here](https://github.com/tachiyomiorg/tachiyomi/tree/master/app/src/main/java/eu/kanade/tachiyomi/source). Referencing the actual implementation will help with understanding extensions' call flow.
-
-#### Rate limiting library
-
-[`lib-ratelimit`](https://github.com/tachiyomiorg/tachiyomi-extensions/tree/master/lib/ratelimit) is a library for adding rate limiting functionality as an [OkHttp interceptor](https://square.github.io/okhttp/interceptors/).
-
-```gradle
-dependencies {
-    implementation(project(':lib-ratelimit'))
-}
-```
 
 #### DataImage library
 
@@ -260,7 +250,7 @@ open class UriPartFilter(displayName: String, private val vals: Array<Pair<Strin
 
 - After a chapter list for the manga is fetched and the app is going to cache the data, `prepareNewChapter` will be called.
 - `SChapter.date_upload` is the [UNIX Epoch time](https://en.wikipedia.org/wiki/Unix_time) **expressed in milliseconds**.
-    - If you don't pass `SChapter.date_upload`, the app will use the fetch date instead, but it's recommended to always fill it if it's available.
+    - If you don't pass `SChapter.date_upload` and leave it zero, the app will use the default date instead, but it's recommended to always fill it if it's available.
     - To get the time in milliseconds from a date string, you can use a `SimpleDateFormat` like in the example below.
 
       ```kotlin
@@ -276,8 +266,13 @@ open class UriPartFilter(displayName: String, private val vals: Array<Pair<Strin
       }
       ```
       
-      Make sure you make the `SimpleDateFormat` a class constant or variable so it doesn't get recreated for every chapter.
-    - If the parsing have any problem, make sure to return `0L` so the app will use the fetch date instead.
+      Make sure you make the `SimpleDateFormat` a class constant or variable so it doesn't get recreated for every chapter. If you need to parse or format dates in manga description, create another instance since `SimpleDateFormat` is not thread-safe.
+    - If the parsing have any problem, make sure to return `0L` so the app will use the default date instead.
+    - The app will overwrite dates of existing old chapters **UNLESS** `0L` is returned.
+    - The default date has [changed](https://github.com/tachiyomiorg/tachiyomi/pull/7197) in preview ≥ r4442 or stable > 0.13.4.
+      - In older versions, the default date is always the fetch date.
+      - In newer versions, this is the same if every (new) chapter has `0L` returned.
+      - However, if the source only provides the upload date of the latest chapter, you can now set it to the latest chapter and leave other chapters default. The app will automatically set it (instead of fetch date) to every new chapter and leave old chapters' dates untouched.
 
 #### Chapter Pages
 

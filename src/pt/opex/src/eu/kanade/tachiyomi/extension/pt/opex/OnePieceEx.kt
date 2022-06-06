@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.extension.pt.opex
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -35,7 +35,7 @@ class OnePieceEx : ParsedHttpSource() {
     override val supportsLatest = false
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
-        .addInterceptor(RateLimitInterceptor(1, 2, TimeUnit.SECONDS))
+        .rateLimit(1, 2, TimeUnit.SECONDS)
         .build()
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
@@ -72,7 +72,7 @@ class OnePieceEx : ParsedHttpSource() {
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = element.select("div.volume-nome h2").text() + " - " +
             element.select("div.volume-nome h3").text()
-        thumbnail_url = THUMBNAIL_URL_MAP[title.toUpperCase(Locale.ROOT)] ?: DEFAULT_THUMBNAIL
+        thumbnail_url = THUMBNAIL_URL_MAP[title.uppercase(Locale.ROOT)] ?: DEFAULT_THUMBNAIL
 
         val customUrl = "$baseUrl/mangas/".toHttpUrlOrNull()!!.newBuilder()
             .addQueryParameter("type", "special")
@@ -142,7 +142,7 @@ class OnePieceEx : ParsedHttpSource() {
                 val volumeEl = document.select("#post > div.volume:contains(" + title.substringAfter(" - ") + ")").first()!!
                 author = if (title.contains("One Piece")) "Eiichiro Oda" else "OPEX"
                 description = volumeEl.select("li.resenha").text()
-                thumbnail_url = THUMBNAIL_URL_MAP[title.toUpperCase(Locale.ROOT)] ?: DEFAULT_THUMBNAIL
+                thumbnail_url = THUMBNAIL_URL_MAP[title.uppercase(Locale.ROOT)] ?: DEFAULT_THUMBNAIL
             }
         }
     }

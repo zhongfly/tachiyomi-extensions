@@ -10,21 +10,18 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 
-class BannerInterceptor : Interceptor {
-    private val banner: Bitmap by lazy {
-        val buffer = Base64.decode(BANNER_BASE64, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(buffer, 0, buffer.size)
-    }
-    private val w by lazy { banner.width }
-    private val h by lazy { banner.height }
-    private val size by lazy { w * h }
+object BannerInterceptor : Interceptor {
+    private const val w = BANNER_WIDTH
+    private const val h = BANNER_HEIGHT
+    private const val size = w * h
+    private const val threshold = w * h * 3 // 1 per pixel per channel
     private val bannerBuffer by lazy {
-        val buffer = IntArray(size)
-        banner.getPixels(buffer, 0, w, 0, 0, w, h)
-        banner.recycle()
-        buffer
+        val buffer = Base64.decode(BANNER_BASE64, Base64.DEFAULT)
+        val banner = BitmapFactory.decodeByteArray(buffer, 0, buffer.size)
+        val pixels = IntArray(size)
+        banner.getPixels(pixels, 0, w, 0, 0, w, h)
+        pixels
     }
-    private val threshold by lazy { w * h * 3 } // 1 per pixel per channel
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val url = chain.request().url.toString()
@@ -34,17 +31,13 @@ class BannerInterceptor : Interceptor {
         val contentType = body.contentType()
         val content = body.bytes()
         val bitmap = BitmapFactory.decodeByteArray(content, 0, content.size)
-        val position = checkBanner(bitmap)
-        return if (position == null) {
+        val positions = checkBanner(bitmap)
+        return if (positions == 0) {
             response.newBuilder().body(content.toResponseBody(contentType)).build()
         } else {
             val result = Bitmap.createBitmap(
-                bitmap, 0,
-                when (position) {
-                    BannerPosition.TOP -> h
-                    BannerPosition.BOTTOM -> 0
-                },
-                bitmap.width, bitmap.height - h
+                bitmap, 0, if (positions and TOP == TOP) h else 0,
+                bitmap.width, bitmap.height - if (positions == BOTH) h * 2 else h
             )
             val output = ByteArrayOutputStream()
             result.compress(Bitmap.CompressFormat.JPEG, 90, output)
@@ -53,16 +46,17 @@ class BannerInterceptor : Interceptor {
         }
     }
 
-    private fun checkBanner(image: Bitmap): BannerPosition? {
-        if (image.width < w || image.height < h) return null
-        if ((image.width - w) % 2 != 0) return null
+    private fun checkBanner(image: Bitmap): Int {
+        if (image.width < w || image.height < h) return 0
+        if ((image.width - w) % 2 != 0) return 0
         val pad = (image.width - w) / 2
         val buf = IntArray(size)
+        var result = 0
         image.getPixels(buf, 0, w, pad, 0, w, h) // top
-        if (isIdentical(bannerBuffer, buf)) return BannerPosition.TOP
+        if (isIdentical(bannerBuffer, buf)) result = result or TOP
         image.getPixels(buf, 0, w, pad, image.height - h, w, h) // bottom
-        if (isIdentical(bannerBuffer, buf)) return BannerPosition.BOTTOM
-        return null
+        if (isIdentical(bannerBuffer, buf)) result = result or BOTTOM
+        return result
     }
 
     private fun isIdentical(a: IntArray, b: IntArray): Boolean {
@@ -78,7 +72,9 @@ class BannerInterceptor : Interceptor {
         return true
     }
 
-    private enum class BannerPosition { TOP, BOTTOM }
-}
+    private const val TOP = 0b01
+    private const val BOTTOM = 0b10
+    private const val BOTH = 0b11
 
-const val COMIC_IMAGE_SUFFIX = "#baozi"
+    const val COMIC_IMAGE_SUFFIX = "#baozi"
+}

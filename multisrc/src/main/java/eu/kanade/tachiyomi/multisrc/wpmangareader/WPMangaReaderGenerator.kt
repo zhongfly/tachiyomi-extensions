@@ -10,7 +10,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
 
     override val themeClass = "WPMangaReader"
 
-    override val baseVersionCode: Int = 12
+    override val baseVersionCode: Int = 13
 
     override val sources = listOf(
         MultiLang("Flame Scans", "https://flamescans.org", listOf("ar", "en"), className = "FlameScansFactory", pkgName = "flamescans", overrideVersionCode = 1),
@@ -24,7 +24,6 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Fusion Scanlation", "https://fusionscanlation.com", "es", className = "FusionScanlation", overrideVersionCode = 2),
         SingleLang("Gabut Scans", "https://gabutscans.com", "id"),
         SingleLang("Gecenin Lordu", "https://geceninlordu.com", "tr", overrideVersionCode = 1),
-        SingleLang("Graze Scans", "https://grazescans.com", "en", overrideVersionCode = 2),
         SingleLang("Kiryuu", "https://kiryuu.id", "id", overrideVersionCode = 6),
         SingleLang("Komik Lab", "https://komiklab.com", "id"),
         SingleLang("KomikMama", "https://komikmama.net", "id"),
@@ -35,7 +34,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Mangasusu", "https://mangasusu.co.in", "id", isNsfw = true, overrideVersionCode = 1),
         SingleLang("Mangás Chan", "https://mangaschan.com", "pt-BR", className = "MangasChan"),
         SingleLang("Manhua Raw", "https://manhuaraw.com", "en"),
-        SingleLang("ManhwaIndo", "https://manhwaindo.id", "id", isNsfw = true),
+        SingleLang("ManhwaIndo", "https://manhwaindo.id", "id", isNsfw = true, overrideVersionCode = 2),
         SingleLang("Martial Manga", "https://martialmanga.com", "es"),
         SingleLang("Miau Scan", "https://miauscan.com", "es"),
         SingleLang("Mode Scanlator", "https://modescanlator.com", "pt-BR", overrideVersionCode = 7),
@@ -54,7 +53,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("TurkToon", "https://turktoon.com", "tr"),
         SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 7),
         SingleLang("YANP Fansub", "https://melhorcasal.com", "pt-BR", isNsfw = true, overrideVersionCode = 1),
-        SingleLang("iiMANGA", "https://aresmanga.com", "ar", overrideVersionCode = 1),
+        SingleLang("ARESManga", "https://aresmanga.com", "ar", pkgName = "iimanga", overrideVersionCode = 2),
     )
 
     companion object {

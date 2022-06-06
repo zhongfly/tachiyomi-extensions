@@ -50,8 +50,8 @@ class Manhwa18 : FMReader("Manhwa18", "https://manhwa18.com", "en") {
                 info.select(".info-name:contains(Other name:) + .info-value")
                     .firstOrNull()?.text()?.let {
                         val altName = removeGenericWords(it)
-                        description = when (title.toLowerCase(Locale.US)) {
-                            altName.toLowerCase(Locale.US) -> description
+                        description = when (title.lowercase(Locale.US)) {
+                            altName.lowercase(Locale.US) -> description
                             else -> description + "\n\n$altName"
                         }
                     }
@@ -64,7 +64,7 @@ class Manhwa18 : FMReader("Manhwa18", "https://manhwa18.com", "en") {
     private fun removeGenericWords(name: String): String {
         val excludeList = listOf("manhwa", "engsub")
         return name.split(' ').filterNot { word ->
-            word.toLowerCase(Locale.US) in excludeList
+            word.lowercase(Locale.US) in excludeList
         }.joinToString(" ")
     }
 
@@ -77,8 +77,8 @@ class Manhwa18 : FMReader("Manhwa18", "https://manhwa18.com", "en") {
                 name = element.attr("title")
                 date_upload =
                     SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(
-                    element.select(".chapter-time").text().substringAfter(" - ")
-                )?.time ?: 0L
+                        element.select(".chapter-time").text().substringAfter(" - ")
+                    )?.time ?: 0L
                 chapter_number = element.attr("time").substringAfterLast(' ').toFloatOrNull() ?: -1f
             }
         }

@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.extension.ru.selfmanga
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
@@ -32,10 +32,8 @@ class Selfmanga : ParsedHttpSource() {
 
     override val supportsLatest = true
 
-    private val rateLimitInterceptor = RateLimitInterceptor(2)
-
     override val client: OkHttpClient = network.client.newBuilder()
-        .addNetworkInterceptor(rateLimitInterceptor)
+        .rateLimit(2)
         .addNetworkInterceptor { chain ->
             val originalRequest = chain.request()
             val response = chain.proceed(originalRequest)
@@ -57,7 +55,7 @@ class Selfmanga : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = element.select("img.lazy").first().attr("data-original")
+        manga.thumbnail_url = element.select("img.lazy").first()?.attr("data-original")?.replace("_p.", ".")
         element.select("h3 > a").first().let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.attr("title")

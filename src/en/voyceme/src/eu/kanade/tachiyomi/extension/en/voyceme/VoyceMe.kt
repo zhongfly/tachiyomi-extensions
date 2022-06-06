@@ -1,9 +1,9 @@
 package eu.kanade.tachiyomi.extension.en.voyceme
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -29,7 +29,6 @@ import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import java.lang.Exception
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -46,7 +45,7 @@ class VoyceMe : HttpSource() {
     override val supportsLatest = true
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
-        .addInterceptor(RateLimitInterceptor(2, 1, TimeUnit.SECONDS))
+        .rateLimit(2, 1, TimeUnit.SECONDS)
         .build()
 
     private val json: Json by injectLazy()

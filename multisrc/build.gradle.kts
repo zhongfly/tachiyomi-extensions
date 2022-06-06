@@ -8,16 +8,22 @@ plugins {
 }
 
 android {
-    compileSdkVersion(AndroidConfig.compileSdk)
+    compileSdk = AndroidConfig.compileSdk
 
     defaultConfig {
-        minSdkVersion(29)
-        targetSdkVersion(AndroidConfig.targetSdk)
+        minSdk = 29
+        targetSdk = AndroidConfig.targetSdk
     }
 }
 
 repositories {
     mavenCentral()
+}
+
+configurations {
+    compileOnly {
+        isCanBeResolved = true
+    }
 }
 
 dependencies {
@@ -28,7 +34,8 @@ tasks {
     val generateExtensions by registering {
         doLast {
             val isWindows = System.getProperty("os.name").toString().toLowerCase().contains("win")
-            var classPath = (configurations.debugCompileOnly.get().asFileTree.toList() +
+            var classPath = (
+                    configurations.compileOnly.get().asFileTree.toList() +
                     listOf(
                         configurations.androidApis.get().asFileTree.first().absolutePath, // android.jar path
                         "$projectDir/build/intermediates/aar_main_jar/debug/classes.jar" // jar made from this module

@@ -4,11 +4,12 @@ import android.app.Application
 import android.content.SharedPreferences
 import android.text.InputType
 import android.widget.Toast
-import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.AppInfo
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -38,7 +39,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.io.IOException
 
-class Mango : ConfigurableSource, HttpSource() {
+class Mango : ConfigurableSource, UnmeteredSource, HttpSource() {
 
     override fun popularMangaRequest(page: Int): Request =
         GET("$baseUrl/api/library?depth=0", headersBuilder().build())
@@ -85,9 +86,9 @@ class Mango : ConfigurableSource, HttpSource() {
     // Here the best we can do is just match manga based on their titles
     private fun searchMangaParse(response: Response, query: String): MangasPage {
 
-        val queryLower = query.toLowerCase()
+        val queryLower = query.lowercase()
         val mangas = popularMangaParse(response).mangas
-        val exactMatch = mangas.firstOrNull { it.title.toLowerCase() == queryLower }
+        val exactMatch = mangas.firstOrNull { it.title.lowercase() == queryLower }
         if (exactMatch != null) {
             return MangasPage(listOf(exactMatch), false)
         }
@@ -98,13 +99,13 @@ class Mango : ConfigurableSource, HttpSource() {
 
         // Take results that potentially start the same
         val results = mangas.filter {
-            val title = it.title.toLowerCase()
+            val title = it.title.lowercase()
             val query2 = queryLower.take(7)
             (title.startsWith(query2, true) || title.contains(query2, true))
-        }.sortedBy { textDistance.distance(queryLower, it.title.toLowerCase()) }
+        }.sortedBy { textDistance.distance(queryLower, it.title.lowercase()) }
 
         // Take similar results
-        val results2 = mangas.map { Pair(textDistance2.distance(it.title.toLowerCase(), query), it) }
+        val results2 = mangas.map { Pair(textDistance2.distance(it.title.lowercase(), query), it) }
             .filter { it.first < 0.3 }.sortedBy { it.first }.map { it.second }
         val combinedResults = results.union(results2)
 
@@ -212,7 +213,7 @@ class Mango : ConfigurableSource, HttpSource() {
 
     override fun headersBuilder(): Headers.Builder =
         Headers.Builder()
-            .add("User-Agent", "Tachiyomi Mango v${BuildConfig.VERSION_NAME}")
+            .add("User-Agent", "Tachiyomi Mango v${AppInfo.getVersionName()}")
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)

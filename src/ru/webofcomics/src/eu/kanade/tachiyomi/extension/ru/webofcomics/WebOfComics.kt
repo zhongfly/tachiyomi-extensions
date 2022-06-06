@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.extension.ru.webofcomics
 
-import eu.kanade.tachiyomi.lib.ratelimit.RateLimitInterceptor
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -40,7 +40,7 @@ class WebOfComics : ParsedHttpSource() {
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        .addNetworkInterceptor(RateLimitInterceptor(3))
+        .rateLimit(3)
         .build()
 
     override fun popularMangaRequest(page: Int): Request {
@@ -340,15 +340,23 @@ class WebOfComics : ParsedHttpSource() {
                         .substringBefore("\">")
                         .trim()
 
-            var subPage = ""
-
+            val countSubPage = counterPageStr.split("document.write").size
             return (startPageStr.toInt() until endPageStr.toInt()).mapIndexed { index, page ->
-                if (startPageStr == "0") {
-                    subPage = when {
-                        page < 10 -> "00"
-                        page < 100 -> "0"
-                        else -> ""
+                val subPage = when (countSubPage) {
+                    3 -> {
+                        when {
+                            page < 10 -> "0"
+                            else -> ""
+                        }
                     }
+                    4 -> {
+                        when {
+                            page < 10 -> "00"
+                            page < 100 -> "0"
+                            else -> ""
+                        }
+                    }
+                    else -> ""
                 }
                 Page(
                     index,
