@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -29,7 +30,6 @@ import javax.net.ssl.X509TrustManager
 class CopyMangas : ConfigurableSource, HttpSource() {
 
     override val name = "拷贝漫画"
-    override val baseUrl = "https://api.copymanga.org"
     override val lang = "zh"
     override val supportsLatest = true
     private val searchPageSize = 18 // default
@@ -38,6 +38,9 @@ class CopyMangas : ConfigurableSource, HttpSource() {
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
+
+    override val baseUrl = "https://${preferences.getString(API_URL_PREF, APIURLS[0])}"
+
     private val trustManager = object : X509TrustManager {
         override fun getAcceptedIssuers(): Array<X509Certificate> {
             return emptyArray()
@@ -230,10 +233,10 @@ class CopyMangas : ConfigurableSource, HttpSource() {
         return ret
     }
 
-    override fun headersBuilder() = super.headersBuilder()
-        .set("User-Agent", "Dart/2.15(dart:io)")
+    override fun headersBuilder(): Headers.Builder = Headers.Builder()
+        .set("User-Agent", "Dart/2.16(dart:io)")
         .set("source", "copyApp")
-        .set("version", "1.3.5")
+        .set("version", "1.3.7")
         .set("region", if (preferences.getBoolean(CHANGE_CDN_OVERSEAS, false)) "0" else "1")
         .set("webp", if (preferences.getBoolean(CHANGE_WEBP_OPTION, false)) "1" else "0")
         .set("authorization", "Token")
@@ -403,14 +406,29 @@ class CopyMangas : ConfigurableSource, HttpSource() {
                 }
             }
         }
+        val apiUrlPref = androidx.preference.ListPreference(screen.context).apply {
+            key = API_URL_PREF
+            title = "Api域名"
+            entries = APIURLS
+            entryValues = APIURLS
+            summary = "选择所使用的api域名。重启软件生效。"
+
+            setDefaultValue(APIURLS[0])
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(API_URL_PREF, newValue as String).commit()
+            }
+        }
         screen.addPreference(zhPreference)
         screen.addPreference(cdnPreference)
         screen.addPreference(webpPreference)
+        screen.addPreference(apiUrlPref)
     }
 
     companion object {
         private const val SHOW_Simplified_Chinese_TITLE_PREF = "showSCTitle"
         private const val CHANGE_CDN_OVERSEAS = "changeCDN"
         private const val CHANGE_WEBP_OPTION = "changeWebp"
+        private const val API_URL_PREF = "apiUrl"
+        private val APIURLS = arrayOf("api.copymanga.org", "api.copymanga.com", "api.copymanga.net", "api.copymanga.info")
     }
 }
