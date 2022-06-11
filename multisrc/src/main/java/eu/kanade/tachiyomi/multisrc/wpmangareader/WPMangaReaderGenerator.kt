@@ -37,7 +37,7 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("ManhwaIndo", "https://manhwaindo.id", "id", isNsfw = true, overrideVersionCode = 2),
         SingleLang("Martial Manga", "https://martialmanga.com", "es"),
         SingleLang("Miau Scan", "https://miauscan.com", "es"),
-        SingleLang("Mode Scanlator", "https://modescanlator.com", "pt-BR", overrideVersionCode = 7),
+        SingleLang("Mode Scanlator", "https://modescanlator.com", "pt-BR", overrideVersionCode = 8),
         SingleLang("Ngomik", "https://ngomik.net", "id", overrideVersionCode = 1),
         SingleLang("Origami Orpheans", "https://origami-orpheans.com.br", "pt-BR", overrideVersionCode = 9),
         SingleLang("Ozul Scans", "https://ozulscans.com", "ar"),
@@ -52,7 +52,6 @@ class WPMangaReaderGenerator : ThemeSourceGenerator {
         SingleLang("Tsundoku Traduções", "https://tsundoku.com.br", "pt-BR", className = "TsundokuTraducoes", overrideVersionCode = 9),
         SingleLang("TurkToon", "https://turktoon.com", "tr"),
         SingleLang("World Romance Translation", "https://wrt.my.id", "id", overrideVersionCode = 7),
-        SingleLang("YANP Fansub", "https://melhorcasal.com", "pt-BR", isNsfw = true, overrideVersionCode = 1),
         SingleLang("ARESManga", "https://aresmanga.com", "ar", pkgName = "iimanga", overrideVersionCode = 2),
     )
 
