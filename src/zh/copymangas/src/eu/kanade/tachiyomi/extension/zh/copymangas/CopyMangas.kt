@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.SharedPreferences
 import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -20,12 +21,8 @@ import okhttp3.Response
 import org.json.JSONObject
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Locale
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 
 class CopyMangas : ConfigurableSource, HttpSource() {
 
@@ -39,25 +36,10 @@ class CopyMangas : ConfigurableSource, HttpSource() {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    override val baseUrl = "https://${preferences.getString(API_URL_PREF, APIURLS[0])}"
-
-    private val trustManager = object : X509TrustManager {
-        override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return emptyArray()
-        }
-
-        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
-        }
-
-        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-        }
-    }
-    private val sslContext = SSLContext.getInstance("SSL").apply {
-        init(null, arrayOf(trustManager), SecureRandom())
-    }
+    override val baseUrl = "https://${preferences.getString(API_URL_PREF, APIURLS[2])}"
 
     override val client: OkHttpClient = super.client.newBuilder()
-        .sslSocketFactory(sslContext.socketFactory, trustManager)
+        .rateLimit(preferences.getString(API_RATELIMIT_PREF, "3")!!.toInt(), 1) // N requests per second
         .build()
 
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/api/v3/comics?ordering=-popular&offset=${(page - 1) * searchPageSize}&limit=$searchPageSize&platform=3&free_type=1", headers)
@@ -233,14 +215,15 @@ class CopyMangas : ConfigurableSource, HttpSource() {
         return ret
     }
 
-    override fun headersBuilder(): Headers.Builder = Headers.Builder()
-        .set("User-Agent", "Dart/2.16(dart:io)")
-        .set("source", "copyApp")
-        .set("version", "1.3.7")
-        .set("region", if (preferences.getBoolean(CHANGE_CDN_OVERSEAS, false)) "0" else "1")
-        .set("webp", if (preferences.getBoolean(CHANGE_WEBP_OPTION, false)) "1" else "0")
-        .set("authorization", "Token")
-        .set("platform", "3")
+    override fun headersBuilder(): Headers.Builder = Headers.Builder().apply {
+        set("User-Agent", "Dart/2.16(dart:io)")
+        set("source", "copyApp")
+        set("version", "1.3.8")
+        set("region", if (preferences.getBoolean(CHANGE_CDN_OVERSEAS_PREF, false)) "0" else "1")
+        set("webp", if (preferences.getBoolean(CHANGE_WEBP_PREF, false)) "1" else "0")
+        set("authorization", "Token")
+        set("platform", "3")
+    }
 
     // Unused, we can get image urls directly from the chapter page
     override fun imageUrlParse(response: Response) =
@@ -256,58 +239,62 @@ class CopyMangas : ConfigurableSource, HttpSource() {
                 Pair("愛情", "aiqing"),
                 Pair("歡樂向", "huanlexiang"),
                 Pair("冒险", "maoxian"),
-                Pair("百合", "baihe"),
-                Pair("東方", "dongfang"),
                 Pair("奇幻", "qihuan"),
+                Pair("百合", "baihe"),
                 Pair("校园", "xiaoyuan"),
                 Pair("科幻", "kehuan"),
+                Pair("東方", "dongfang"),
                 Pair("生活", "shenghuo"),
                 Pair("轻小说", "qingxiaoshuo"),
                 Pair("格鬥", "gedou"),
-                Pair("神鬼", "shengui"),
-                Pair("悬疑", "xuanyi"),
                 Pair("耽美", "danmei"),
+                Pair("悬疑", "xuanyi"),
+                Pair("神鬼", "shengui"),
                 Pair("其他", "qita"),
-                Pair("舰娘", "jianniang"),
                 Pair("职场", "zhichang"),
-                Pair("治愈", "zhiyu"),
                 Pair("萌系", "mengxi"),
+                Pair("治愈", "zhiyu"),
+                Pair("長條", "changtiao"),
                 Pair("四格", "sige"),
-                Pair("伪娘", "weiniang"),
+                Pair("舰娘", "jianniang"),
+                Pair("节操", "jiecao"),
+                Pair("TL", "teenslove"),
                 Pair("竞技", "jingji"),
                 Pair("搞笑", "gaoxiao"),
-                Pair("長條", "changtiao"),
+                Pair("伪娘", "weiniang"),
+                Pair("热血", "rexue"),
+                Pair("後宮", "hougong"),
+                Pair("美食", "meishi"),
                 Pair("性转换", "xingzhuanhuan"),
                 Pair("侦探", "zhentan"),
-                Pair("节操", "jiecao"),
-                Pair("热血", "rexue"),
-                Pair("美食", "meishi"),
-                Pair("後宮", "hougong"),
                 Pair("励志", "lizhi"),
-                Pair("音乐舞蹈", "yinyuewudao"),
-                Pair("彩色", "COLOR"),
                 Pair("AA", "aa"),
+                Pair("彩色", "COLOR"),
+                Pair("音乐舞蹈", "yinyuewudao"),
                 Pair("异世界", "yishijie"),
-                Pair("历史", "lishi"),
                 Pair("战争", "zhanzheng"),
+                Pair("历史", "lishi"),
                 Pair("机战", "jizhan"),
-                Pair("C97", "comiket97"),
-                Pair("C96", "comiket96"),
-                Pair("宅系", "zhaixi"),
-                Pair("C98", "C98"),
-                Pair("C95", "comiket95"),
+                Pair("惊悚", "jingsong"),
                 Pair("恐怖", "%E6%81%90%E6%80 %96"),
-                Pair("FATE", "fate"),
-                Pair("無修正", "Uncensored"),
+                Pair("都市", "dushi"),
                 Pair("穿越", "chuanyue"),
+                Pair("重生", "chongsheng"),
+                Pair("魔幻", "mohuan"),
+                Pair("宅系", "zhaixi"),
                 Pair("武侠", "wuxia"),
                 Pair("生存", "shengcun"),
-                Pair("惊悚", "jingsong"),
-                Pair("都市", "dushi"),
-                Pair("LoveLive", "loveLive"),
+                Pair("FATE", "fate"),
+                Pair("無修正", "Uncensored"),
                 Pair("转生", "zhuansheng"),
-                Pair("重生", "chongsheng"),
-                Pair("仙侠", "xianxia")
+                Pair("LoveLive", "loveLive"),
+                Pair("男同", "nantong"),
+                Pair("仙侠", "xianxia"),
+                Pair("C99", "comiket99"),
+                Pair("C98", "C98"),
+                Pair("C97", "comiket97"),
+                Pair("C96", "comiket96"),
+                Pair("C95", "comiket95")
             )
         ),
         MangaFilter(
@@ -359,76 +346,76 @@ class CopyMangas : ConfigurableSource, HttpSource() {
         }
     }
 
-    // Change Title to Simplified Chinese For Library Gobal Search Optionally
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        val zhPreference = androidx.preference.CheckBoxPreference(screen.context).apply {
+        val zhPreference = androidx.preference.SwitchPreferenceCompat(screen.context).apply {
             key = SHOW_Simplified_Chinese_TITLE_PREF
             title = "将标题和简介转换为简体中文"
             summary = "需要重启软件以生效。已添加漫画需要迁移改变标题和简介。"
 
             setOnPreferenceChangeListener { _, newValue ->
-                try {
-                    val setting = preferences.edit().putBoolean(SHOW_Simplified_Chinese_TITLE_PREF, newValue as Boolean).commit()
-                    setting
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    false
-                }
+                preferences.edit().putBoolean(SHOW_Simplified_Chinese_TITLE_PREF, newValue as Boolean).commit()
             }
         }
-        val cdnPreference = androidx.preference.CheckBoxPreference(screen.context).apply {
-            key = CHANGE_CDN_OVERSEAS
+        val cdnPreference = androidx.preference.SwitchPreferenceCompat(screen.context).apply {
+            key = CHANGE_CDN_OVERSEAS_PREF
             title = "转换图片CDN为境外CDN"
             summary = "加载图片使用境外CDN，使用代理的情况下推荐打开此选项（境外CDN可能无法查看一些刚刚更新的漫画，需要等待资源更新到CDN）"
 
             setOnPreferenceChangeListener { _, newValue ->
-                try {
-                    val setting = preferences.edit().putBoolean(CHANGE_CDN_OVERSEAS, newValue as Boolean).commit()
-                    setting
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    false
-                }
+                preferences.edit().putBoolean(CHANGE_CDN_OVERSEAS_PREF, newValue as Boolean).commit()
             }
         }
-        val webpPreference = androidx.preference.CheckBoxPreference(screen.context).apply {
-            key = CHANGE_WEBP_OPTION
+        val webpPreference = androidx.preference.SwitchPreferenceCompat(screen.context).apply {
+            key = CHANGE_WEBP_PREF
             title = "加载webp格式的图片"
             summary = "加载webp格式的图片，推荐打开此选项，体积小加载更快（关闭时加载jpeg格式图片）"
 
             setOnPreferenceChangeListener { _, newValue ->
-                try {
-                    val setting = preferences.edit().putBoolean(CHANGE_WEBP_OPTION, newValue as Boolean).commit()
-                    setting
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    false
-                }
+                preferences.edit().putBoolean(CHANGE_WEBP_PREF, newValue as Boolean).commit()
             }
         }
-        val apiUrlPref = androidx.preference.ListPreference(screen.context).apply {
+        val apiUrlPreference = androidx.preference.ListPreference(screen.context).apply {
             key = API_URL_PREF
             title = "Api域名"
+            summary = "选择所使用的api域名。重启软件生效。\n当前值：%s"            
             entries = APIURLS
             entryValues = APIURLS
-            summary = "选择所使用的api域名。重启软件生效。"
 
-            setDefaultValue(APIURLS[0])
+            setDefaultValue(APIURLS[2])
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit().putString(API_URL_PREF, newValue as String).commit()
+            }
+        }
+        val apiRateLimitPreference = androidx.preference.ListPreference(screen.context).apply {
+            key = API_RATELIMIT_PREF
+            title = "网站每秒连接数限制"
+            summary = "此值影响向网站发起连接请求的数量。调低此值可能减少发生网络错误的几率，但加载速度也会变慢。需要重启软件以生效。\n当前值：%s"
+            entries = ENTRIES_ARRAY
+            entryValues = ENTRIES_ARRAY
+
+            setDefaultValue("3")
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(API_RATELIMIT_PREF, newValue as String).commit()
             }
         }
         screen.addPreference(zhPreference)
         screen.addPreference(cdnPreference)
         screen.addPreference(webpPreference)
-        screen.addPreference(apiUrlPref)
+        screen.addPreference(apiUrlPreference)
+        screen.addPreference(apiRateLimitPreference)
     }
 
     companion object {
         private const val SHOW_Simplified_Chinese_TITLE_PREF = "showSCTitle"
-        private const val CHANGE_CDN_OVERSEAS = "changeCDN"
-        private const val CHANGE_WEBP_OPTION = "changeWebp"
+        
+        private const val CHANGE_CDN_OVERSEAS_PREF = "changeCDN"
+        
+        private const val CHANGE_WEBP_PREF = "changeWebp"
+        
         private const val API_URL_PREF = "apiUrl"
         private val APIURLS = arrayOf("api.copymanga.org", "api.copymanga.com", "api.copymanga.net", "api.copymanga.info")
+        
+        private const val API_RATELIMIT_PREF = "apiRatelimit"
+        private val ENTRIES_ARRAY = (1..10).map { i -> i.toString() }.toTypedArray()
     }
 }
