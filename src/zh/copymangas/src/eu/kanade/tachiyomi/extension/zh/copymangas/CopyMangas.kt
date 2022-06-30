@@ -319,12 +319,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     companion object {
-        private const val DOMAIN_PREF = "domain"
-        private const val OVERSEAS_CDN_PREF = "changeCDN"
-        private const val SC_TITLE_PREF = "showSCTitle"
-        private const val WEBP_PREF = "useWebp"
-        private const val USER_AGENT_PREF = "userAgent"
-        private const val VERSION_PREF = "version"
+        private const val DOMAIN_PREF = "domainZ"
+        private const val OVERSEAS_CDN_PREF = "changeCDNZ"
+        private const val SC_TITLE_PREF = "showSCTitleZ"
+        private const val WEBP_PREF = "useWebpZ"
+        private const val USER_AGENT_PREF = "userAgentZ"
+        private const val VERSION_PREF = "versionZ"
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
