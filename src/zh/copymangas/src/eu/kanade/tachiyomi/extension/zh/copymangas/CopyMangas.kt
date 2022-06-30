@@ -65,9 +65,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .add("platform", "3")
         .build()
     
-    private var browserHeaders = Headers.Builder()
+    override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
-        .build()
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
@@ -116,7 +115,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     // 让 WebView 打开网页而不是 API
-    override fun mangaDetailsRequest(manga: SManga) = GET(WWW_PREFIX + domain + manga.url, browserHeaders)
+    override fun mangaDetailsRequest(manga: SManga) = GET(WWW_PREFIX + domain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
         GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
@@ -309,12 +308,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         EditTextPreference(screen.context).apply {
             key = BROWSER_USER_AGENT_PREF
             title = "浏览器User Agent"
-            summary = "高级设置，不建议修改"
+            summary = "高级设置，不建议修改\n重启生效"
             setDefaultValue(DEFAULT_BROWSER_USER_AGENT)
             setOnPreferenceChangeListener { _, newValue ->
                 val userAgent = newValue as String
                 preferences.edit().putString(BROWSER_USER_AGENT_PREF, userAgent).apply()
-                browserHeaders = browserHeaders.newBuilder().setUserAgent(userAgent).build()
                 true
             }
         }.let { screen.addPreference(it) }
