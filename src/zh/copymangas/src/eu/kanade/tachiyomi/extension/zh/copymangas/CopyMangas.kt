@@ -163,10 +163,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
+        val slug = response.request.url.pathSegments[3]
         if (result.show_app) {
             throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
         }
-        return result.chapter.contents.mapIndexed { i, it ->
+        return result.chapter.contents.filter{ it.url.contains("/${slug}/") }.mapIndexed { i, it ->
             Page(i, imageUrl = it.url)
         }
     }

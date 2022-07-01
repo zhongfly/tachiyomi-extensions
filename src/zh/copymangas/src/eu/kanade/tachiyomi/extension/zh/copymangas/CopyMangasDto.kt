@@ -26,7 +26,7 @@ class MangaDto(
     }
 
     fun toSMangaDetails(groups: ChapterGroups) = toSManga().apply {
-        description = brief + groups.toDescription()
+        description = (if (convertToSc) ChineseUtils.toSimplified(brief) else brief ) + groups.toDescription()
         genre = buildList(theme!!.size + 1) {
             add(region!!.display)
             theme.mapTo(this) { it.name }
