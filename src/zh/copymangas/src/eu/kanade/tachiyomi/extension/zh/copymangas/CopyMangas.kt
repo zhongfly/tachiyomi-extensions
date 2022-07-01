@@ -74,18 +74,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun popularMangaRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
-        return GET("$apiUrl/api/v3/recs?pos=3200102&limit=$PAGE_SIZE&offset=$offset", apiHeaders)
+        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-popular&theme=&top=&platform=3", apiHeaders)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val page: ListDto<MangaWrapperDto> = response.parseAs()
+        val page: ListDto<MangaDto> = response.parseAs()
         val hasNextPage = page.offset + page.limit < page.total
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
         val offset = PAGE_SIZE * (page - 1)
-        return GET("$apiUrl/api/v3/update/newest?limit=$PAGE_SIZE&offset=$offset", apiHeaders)
+        return GET("$apiUrl/api/v3/comics?limit=$PAGE_SIZE&offset=$offset&free_type=1&ordering=-datetime_updated&theme=&top=&platform=3", apiHeaders)
     }
 
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
@@ -210,7 +210,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         isFetchingGenres = true
         thread {
             try {
-                val response = client.newCall(GET("$apiUrl/api/v3/theme/comic/count?limit=500", apiHeaders)).execute()
+                val response = client.newCall(GET("$apiUrl/api/v3/theme/comic/count?limit=500&offset=0&free_type=1&platform=3", apiHeaders)).execute()
                 val list = response.parseAs<ListDto<KeywordDto>>().list
                 val result = ArrayList<Param>(list.size + 1).apply { add(Param("全部", "")) }
                 genres = list.mapTo(result) { it.toParam() }.toTypedArray()

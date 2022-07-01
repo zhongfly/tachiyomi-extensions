@@ -81,7 +81,7 @@ class ChapterDto(
     val datetime_created: String,
 ) {
     fun toSChapter(group: String) = SChapter.create().apply {
-        url = "/comic/$comic_path_word/chapter/$uuid"
+        url = "/comic/$comic_path_word/chapter2/$uuid"
         name = if (group.isEmpty()) this@ChapterDto.name else group + '：' + this@ChapterDto.name
         date_upload = dateFormat.parse(datetime_created)?.time ?: 0
     }
