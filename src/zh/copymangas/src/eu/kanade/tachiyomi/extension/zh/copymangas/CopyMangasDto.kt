@@ -108,7 +108,7 @@ class MangaWrapperDto(val comic: MangaDto, val groups: ChapterGroups? = null) {
 typealias ChapterGroups = LinkedHashMap<String, KeywordDto>
 
 @Serializable
-class ChapterPageListDto(val contents: List<UrlDto>)
+class ChapterPageListDto(val contents: List<UrlDto>, val words: List<Int>)
 
 @Serializable
 class UrlDto(val url: String)
