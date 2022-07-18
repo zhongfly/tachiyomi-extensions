@@ -47,6 +47,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     override val client: OkHttpClient = network.client.newBuilder()
+        .addNetworkInterceptor { chain ->
+          chain.proceed(
+              chain.request()
+                  .newBuilder()
+                  .removeHeader("cache-control")
+                  .build()
+          )
+        }
         .build()
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
@@ -56,6 +64,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
 
     private var apiHeaders = Headers.Builder()
+        .removeAll("if-modified-since")
+        .removeAll("cookie")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
@@ -180,7 +190,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private inline fun <reified T> Response.parseAs(): T = use {
         if (header("Content-Type") != "application/json") {
-            throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
+            throw Exception("返回数据错误，不是json")
         } else if (code != 200) {
             throw Exception(json.decodeFromStream<ResultMessageDto>(body!!.byteStream()).message)
         }
