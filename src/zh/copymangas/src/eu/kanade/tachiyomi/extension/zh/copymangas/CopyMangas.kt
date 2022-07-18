@@ -169,7 +169,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}", apiHeaders, CacheControl.FORCE_NETWORK)
+    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}", apiHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
