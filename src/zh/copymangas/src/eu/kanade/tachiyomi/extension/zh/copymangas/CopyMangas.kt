@@ -47,6 +47,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     override val client: OkHttpClient = network.client.newBuilder()
+        .cache(null)
         .build()
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
@@ -56,6 +57,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
 
     private var apiHeaders = Headers.Builder()
+        .removeHeader("if-modified-since")
+        .removeHeader("cookie")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
