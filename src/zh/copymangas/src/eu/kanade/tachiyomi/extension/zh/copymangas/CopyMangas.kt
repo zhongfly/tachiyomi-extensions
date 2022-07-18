@@ -57,8 +57,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
 
     private var apiHeaders = Headers.Builder()
-        .removeHeader("if-modified-since")
-        .removeHeader("cookie")
+        .removeAll("if-modified-since")
+        .removeAll("cookie")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
