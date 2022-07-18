@@ -122,7 +122,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun mangaDetailsRequest(manga: SManga) = GET(WWW_PREFIX + domain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders, CacheControl.FORCE_NETWORK)
 
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
         client.newCall(realMangaDetailsRequest(manga)).asObservableSuccess().map { mangaDetailsParse(it) }
@@ -149,7 +149,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         var offset = 0
         var hasNextPage = true
         while (hasNextPage) {
-            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders, CacheControl.FORCE_NETWORK)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(name) }
@@ -163,7 +163,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}", apiHeaders)
+    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}", apiHeaders, CacheControl.FORCE_NETWORK)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
@@ -184,7 +184,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private inline fun <reified T> Response.parseAs(): T = use {
         if (header("Content-Type") != "application/json") {
-            throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
+            throw Exception("返回数据错误，不是json")
         } else if (code != 200) {
             throw Exception(json.decodeFromStream<ResultMessageDto>(body!!.byteStream()).message)
         }
