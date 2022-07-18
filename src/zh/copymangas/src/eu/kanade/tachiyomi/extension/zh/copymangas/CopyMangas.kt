@@ -23,7 +23,6 @@ import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.CacheControl
 import okhttp3.Request
 import okhttp3.Response
 import rx.Observable
@@ -48,7 +47,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .cache(null)
+        .addNetworkInterceptor { chain ->
+          chain.proceed(
+              chain.request()
+                  .newBuilder()
+                  .removeHeader("cache-control")
+                  .build()
+          )
+        }
         .build()
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
@@ -60,7 +66,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiHeaders = Headers.Builder()
         .removeAll("if-modified-since")
         .removeAll("cookie")
-        .removeAll("cache-control")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
@@ -123,7 +128,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun mangaDetailsRequest(manga: SManga) = GET(WWW_PREFIX + domain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders, CacheControl.FORCE_NETWORK)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
 
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
         client.newCall(realMangaDetailsRequest(manga)).asObservableSuccess().map { mangaDetailsParse(it) }
@@ -150,7 +155,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         var offset = 0
         var hasNextPage = true
         while (hasNextPage) {
-            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders, CacheControl.FORCE_NETWORK)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(name) }
