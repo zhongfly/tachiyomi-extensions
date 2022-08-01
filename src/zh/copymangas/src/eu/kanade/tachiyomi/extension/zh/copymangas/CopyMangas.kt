@@ -341,8 +341,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
-        private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org")
-        private val DOMAIN_INDICES = arrayOf("0", "1", "2")
+        private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
+        private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
         private const val DEFAULT_VERSION = "1.3.8"
 
