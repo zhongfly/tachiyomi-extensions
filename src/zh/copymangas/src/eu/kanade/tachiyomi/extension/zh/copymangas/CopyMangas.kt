@@ -43,8 +43,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
-    private var webDomain = WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
-    override val baseUrl = WWW_PREFIX + webDomain
+    private var webDomain = WWW_PREFIX + WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
+    override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     override val client: OkHttpClient = network.client.newBuilder()
