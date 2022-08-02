@@ -43,7 +43,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
-    override val baseUrl = WWW_PREFIX + domain
+    private var webDomain = WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
+    override val baseUrl = WWW_PREFIX + webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     override val client: OkHttpClient = network.client.newBuilder()
@@ -60,7 +61,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
     private fun Headers.Builder.setWebp(useWebp: Boolean) = set("webp", if (useWebp) "1" else "0")
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
-    private fun Headers.Builder.setReferer() = set("Referer", WWW_PREFIX + domain)
+    private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
 
     private var apiHeaders = Headers.Builder()
@@ -77,6 +78,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     
     override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
+        .setReferer(webDomain)
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
@@ -125,7 +127,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     // 让 WebView 打开网页而不是 API
-    override fun mangaDetailsRequest(manga: SManga) = GET(WWW_PREFIX + domain + manga.url, headers)
+    override fun mangaDetailsRequest(manga: SManga): Request = GET(webDomain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
         GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
@@ -186,7 +188,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun imageUrlParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
-    override fun imageRequest(page: Page): Request  = GET(page.imageUrl!!, Headers.Builder().setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build())
+    private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
+    override fun imageRequest(page: Page): Request {
+        val imageUrl = page.imageUrl!!
+        val headers = Headers.Builder().setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build()
+
+        return GET(imageUrl.replace(".c800x.",".c${imageQuality}x."),headers)
+    }
 
     private inline fun <reified T> Response.parseAs(): T = use {
         if (header("Content-Type") != "application/json") {
@@ -238,7 +246,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
             key = DOMAIN_PREF
-            title = "网址域名"
+            title = "API域名"
             summary = "连接不稳定时可以尝试切换\n当前值：%s"
             entries = DOMAINS
             entryValues = DOMAIN_INDICES
@@ -248,7 +256,75 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 preferences.edit().putString(DOMAIN_PREF, index).apply()
                 domain = DOMAINS[index.toInt()]
                 apiUrl = API_PREFIX + domain
-                apiHeaders = apiHeaders.newBuilder().setReferer().build()
+                apiHeaders = apiHeaders.newBuilder().setReferer(apiUrl).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        ListPreference(screen.context).apply {
+            key = WEB_DOMAIN_PREF
+            title = "网页版域名"
+            summary = "webview中使用的域名\n当前值：%s"
+            entries = WEB_DOMAINS
+            entryValues = WEB_DOMAIN_INDICES
+            setDefaultValue("0")
+            setOnPreferenceChangeListener { _, newValue ->
+                val index = newValue as String
+                preferences.edit().putString(WEB_DOMAIN_PREF, index).apply()
+                webDomain = WWW_PREFIX + WEB_DOMAINS[index.toInt()]
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = OVERSEAS_CDN_PREF
+            title = "使用“港台及海外线路”"
+            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                val useOverseasCdn = newValue as Boolean
+                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
+                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        ListPreference(screen.context).apply {
+            key = QUALITY_PREF
+            title = "图片分辨率（像素）"
+            summary = "阅读过的部分需要清空缓存才能生效\n当前值：%s"
+            entries = QUALITY
+            entryValues = QUALITY
+            setDefaultValue(QUALITY[0])
+            setOnPreferenceChangeListener { _, newValue ->
+                imageQuality = newValue as String
+                preferences.edit().putString(QUALITY_PREF, imageQuality).apply()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = WEBP_PREF
+            title = "使用 WebP 图片格式"
+            summary = "默认开启，可以节省网站流量"
+            setDefaultValue(true)
+            setOnPreferenceChangeListener { _, newValue ->
+                val useWebp = newValue as Boolean
+                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
+                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = SC_TITLE_PREF
+            title = "将作品标题及简介转换为简体中文"
+            summary = "修改后，已添加漫画需要迁移才能更新信息"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                val convertToSc = newValue as Boolean
+                preferences.edit().putBoolean(SC_TITLE_PREF, convertToSc).apply()
+                MangaDto.convertToSc = convertToSc
                 true
             }
         }.let { screen.addPreference(it) }
@@ -279,45 +355,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = OVERSEAS_CDN_PREF
-            title = "使用“港台及海外线路”"
-            summary = "连接不稳定时可以尝试切换，关闭时使用“大陆用户线路”，已阅读章节需要清空缓存才能生效"
-            setDefaultValue(false)
-            setOnPreferenceChangeListener { _, newValue ->
-                val useOverseasCdn = newValue as Boolean
-                preferences.edit().putBoolean(OVERSEAS_CDN_PREF, useOverseasCdn).apply()
-                apiHeaders = apiHeaders.newBuilder().setRegion(useOverseasCdn).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
-
-        SwitchPreferenceCompat(screen.context).apply {
-            key = WEBP_PREF
-            title = "使用 WebP 图片格式"
-            summary = "默认开启，可以节省网站流量"
-            setDefaultValue(true)
-            setOnPreferenceChangeListener { _, newValue ->
-                val useWebp = newValue as Boolean
-                preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
-                apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
-                true
-            }
-        }.let { screen.addPreference(it) }
-
-        SwitchPreferenceCompat(screen.context).apply {
-            key = SC_TITLE_PREF
-            title = "将作品标题转换为简体中文"
-            summary = "修改后，已添加漫画需要迁移才能更新标题"
-            setDefaultValue(false)
-            setOnPreferenceChangeListener { _, newValue ->
-                val convertToSc = newValue as Boolean
-                preferences.edit().putBoolean(SC_TITLE_PREF, convertToSc).apply()
-                MangaDto.convertToSc = convertToSc
-                true
-            }
-        }.let { screen.addPreference(it) }
-
         EditTextPreference(screen.context).apply {
             key = BROWSER_USER_AGENT_PREF
             title = "浏览器User Agent"
@@ -333,7 +370,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     companion object {
         private const val DOMAIN_PREF = "domainZ"
+        private const val WEB_DOMAIN_PREF = "webDomainZ"
         private const val OVERSEAS_CDN_PREF = "changeCDNZ"
+        private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
         private const val USER_AGENT_PREF = "userAgentZ"
@@ -343,8 +382,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val API_PREFIX = "https://api."
         private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
         private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
+        private val WEB_DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
+        private val WEB_DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
+        private val QUALITY = arrayOf("800", "1200", "1500")
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "1.3.8"
+        private const val DEFAULT_VERSION = "1.4.1"
 
         private const val PAGE_SIZE = 20
         private const val CHAPTER_PAGE_SIZE = 500
