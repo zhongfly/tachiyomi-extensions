@@ -50,8 +50,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
     private val groupRegex = Regex("""/group/.*/chapters""")
-    private val baseInterceptor = RateLimitInterceptor(1, 500, TimeUnit.MILLISECONDS)
-    private var useRateLimit = preferences.getBoolean(USE_RATE_LIMIT_PREF, false)
+    private val baseInterceptor = RateLimitInterceptor(1, preferences.getString(GROUP_API_RATE_LIMIT_PREF, "500")!!.toLong(), TimeUnit.MILLISECONDS)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
@@ -63,7 +62,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
           )
         }
         .addNetworkInterceptor{ chain ->
-            when (useRateLimit && chain.request().url.toString().contains(groupRegex)) {
+            when (chain.request().url.toString().contains(groupRegex)) {
                 true -> baseInterceptor.intercept(chain)
                 false -> chain.proceed(chain.request())
             }
@@ -328,14 +327,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
-        SwitchPreferenceCompat(screen.context).apply {
-            key = USE_RATE_LIMIT_PREF
-            title = "启用请求频率限制"
-            summary = "默认关闭"
-            setDefaultValue(false)
+        ListPreference(screen.context).apply {
+            key = GROUP_API_RATE_LIMIT_PREF
+            title = "章节请求频率限制"
+            summary = "此值影响加载章节信息时发起连接请求的数量。需要重启软件以生效。\n当前值：1次/%s ms"
+            entries = RATE_ARRAY
+            entryValues = RATE_ARRAY
+            setDefaultValue("500")
             setOnPreferenceChangeListener { _, newValue ->
-                useRateLimit = newValue as Boolean
-                preferences.edit().putBoolean(USE_RATE_LIMIT_PREF, useRateLimit).apply()
+                val rateLimit = newValue as String
+                preferences.edit().putString(GROUP_API_RATE_LIMIT_PREF, rateLimit).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -399,7 +400,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
-        private const val USE_RATE_LIMIT_PREF = "useRateLimitZ"
+        private const val GROUP_API_RATE_LIMIT_PREF = "groupApiRateLimitZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
@@ -409,6 +410,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
         private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
         private val QUALITY = arrayOf("800", "1200", "1500")
+        private val RATE_ARRAY = (0..1500 step 100).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
         private const val DEFAULT_VERSION = "1.4.1"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
