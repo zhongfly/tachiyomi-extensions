@@ -156,7 +156,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             response.parseAs<MangaWrapperDto>().groups!!.values
         }
         val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
-        result.fetchChapterGroup(mangaSlug, "default", "")
         for (group in groups) {
             result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
         }
