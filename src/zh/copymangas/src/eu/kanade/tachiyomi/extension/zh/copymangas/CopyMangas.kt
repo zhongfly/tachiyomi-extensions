@@ -49,8 +49,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
-    private val ratelimitRegex = Regex("""(/group/.*/chapters)|/chapter2/""")
-    private val baseInterceptor = RateLimitInterceptor(1, preferences.getString(API_RATE_LIMIT_PREF, "500")!!.toLong(), TimeUnit.MILLISECONDS)
+    private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
+    private val chapterRatelimitRegex = Regex("""/chapter2/""")
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
@@ -62,9 +62,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
           )
         }
         .addNetworkInterceptor{ chain ->
-            when (chain.request().url.toString().contains(ratelimitRegex)) {
-                true -> baseInterceptor.intercept(chain)
-                false -> chain.proceed(chain.request())
+            val url = chain.request().url.toString()
+            val groupInterceptor = RateLimitInterceptor(preferences.getString(GROUP_API_RATE_PREF, "25")!!.toInt(), 1, TimeUnit.MINUTES)
+            val chapterInterceptor = RateLimitInterceptor(preferences.getString(CHAPTER_API_RATE_PREF, "16")!!.toInt(), 1, TimeUnit.MINUTES)
+            when {
+                url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
+                url.contains(chapterRatelimitRegex) -> chapterInterceptor.intercept(chain)
+                else -> chain.proceed(chain.request())
             }
         }
         .build()
@@ -327,15 +331,29 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
-            key = API_RATE_LIMIT_PREF
-            title = "请求频率限制"
-            summary = "此值影响向章节信息/图片等限速api时发起连接请求的数量。需要重启软件以生效。\n当前值：1次/%s ms"
+            key = GROUP_API_RATE_PREF
+            title = "章节目录请求频率限制"
+            summary = "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue("500")
+            setDefaultValue("25")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
-                preferences.edit().putString(API_RATE_LIMIT_PREF, rateLimit).apply()
+                preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
+                true
+            }
+        }.let { screen.addPreference(it) }
+        
+        ListPreference(screen.context).apply {
+            key = CHAPTER_API_RATE_PREF
+            title = "章节图片列表请求频率限制"
+            summary = "此值影响向章节图片列表api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
+            entries = RATE_ARRAY
+            entryValues = RATE_ARRAY
+            setDefaultValue("16")
+            setOnPreferenceChangeListener { _, newValue ->
+                val rateLimit = newValue as String
+                preferences.edit().putString(CHAPTER_API_RATE_PREF, rateLimit).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -399,7 +417,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
-        private const val API_RATE_LIMIT_PREF = "apiRateLimitZ"
+        private const val GROUP_API_RATE_PREF = "groupApiRateZ"
+        private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
@@ -409,7 +428,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
         private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
         private val QUALITY = arrayOf("800", "1200", "1500")
-        private val RATE_ARRAY = (0..1500 step 100).map { i -> i.toString() }.toTypedArray()
+        private val RATE_ARRAY = (1..60 step 2).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
         private const val DEFAULT_VERSION = "1.4.1"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
