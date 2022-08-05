@@ -60,7 +60,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
           )
         }
         .addNetworkInterceptor{ chain ->
-            return@Interceptor when (chain.request().url.toString().contains(groupRegex)) {
+            return@Response when (chain.request().url.toString().contains(groupRegex)) {
                 true -> baseInterceptor.intercept(chain)
                 false -> chain.proceed(chain.request())
             }
