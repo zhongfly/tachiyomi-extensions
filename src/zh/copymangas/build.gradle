@@ -6,7 +6,7 @@ ext {
     extName = 'CopyMangas'
     pkgNameSuffix = 'zh.copymangas'
     extClass = '.CopyMangas'
-    extVersionCode = 29
+    extVersionCode = 30
 }
 
 dependencies {
