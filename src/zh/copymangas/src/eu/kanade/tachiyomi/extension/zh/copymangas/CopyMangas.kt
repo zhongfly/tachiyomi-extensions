@@ -49,8 +49,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
 
-    private val groupRegex = Regex("""/group/.*/chapters""")
-    private val baseInterceptor = RateLimitInterceptor(1, preferences.getString(GROUP_API_RATE_LIMIT_PREF, "500")!!.toLong(), TimeUnit.MILLISECONDS)
+    private val ratelimitRegex = Regex("""(/group/.*/chapters)|/chapter2/""")
+    private val baseInterceptor = RateLimitInterceptor(1, preferences.getString(API_RATE_LIMIT_PREF, "500")!!.toLong(), TimeUnit.MILLISECONDS)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
@@ -62,7 +62,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
           )
         }
         .addNetworkInterceptor{ chain ->
-            when (chain.request().url.toString().contains(groupRegex)) {
+            when (chain.request().url.toString().contains(ratelimitRegex)) {
                 true -> baseInterceptor.intercept(chain)
                 false -> chain.proceed(chain.request())
             }
@@ -328,15 +328,15 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         ListPreference(screen.context).apply {
-            key = GROUP_API_RATE_LIMIT_PREF
-            title = "章节请求频率限制"
-            summary = "此值影响加载章节信息时发起连接请求的数量。需要重启软件以生效。\n当前值：1次/%s ms"
+            key = API_RATE_LIMIT_PREF
+            title = "请求频率限制"
+            summary = "此值影响向章节信息/图片等限速api时发起连接请求的数量。需要重启软件以生效。\n当前值：1次/%s ms"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
             setDefaultValue("500")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
-                preferences.edit().putString(GROUP_API_RATE_LIMIT_PREF, rateLimit).apply()
+                preferences.edit().putString(API_RATE_LIMIT_PREF, rateLimit).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -400,7 +400,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
-        private const val GROUP_API_RATE_LIMIT_PREF = "groupApiRateLimitZ"
+        private const val API_RATE_LIMIT_PREF = "apiRateLimitZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
