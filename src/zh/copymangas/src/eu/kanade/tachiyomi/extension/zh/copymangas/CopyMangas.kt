@@ -51,7 +51,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private val groupRegex = Regex("""/group/.*/chapters""")
     private val baseInterceptor = RateLimitInterceptor(1, 500, TimeUnit.MILLISECONDS)
-    private val useRateLimit = preferences.getBoolean(USE_RATE_LIMIT_PREF, false)
+    private var useRateLimit = preferences.getBoolean(USE_RATE_LIMIT_PREF, false)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
