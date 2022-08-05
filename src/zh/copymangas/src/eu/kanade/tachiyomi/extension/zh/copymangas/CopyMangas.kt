@@ -264,7 +264,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "连接不稳定时可以尝试切换\n当前值：%s"
             entries = DOMAINS
             entryValues = DOMAIN_INDICES
-            setDefaultValue("0")
+            setDefaultValue(DOMAIN_INDICES[0])
             setOnPreferenceChangeListener { _, newValue ->
                 val index = newValue as String
                 preferences.edit().putString(DOMAIN_PREF, index).apply()
@@ -281,7 +281,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "webview中使用的域名\n当前值：%s"
             entries = DOMAINS
             entryValues = DOMAIN_INDICES
-            setDefaultValue("0")
+            setDefaultValue(DOMAIN_INDICES[0])
             setOnPreferenceChangeListener { _, newValue ->
                 val index = newValue as String
                 preferences.edit().putString(WEB_DOMAIN_PREF, index).apply()
@@ -336,7 +336,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue("30")
+            setDefaultValue(RATE_ARRAY.last())
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
@@ -350,7 +350,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节图片列表api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue("20")
+            setDefaultValue(RATE_ARRAY.last())
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(CHAPTER_API_RATE_PREF, rateLimit).apply()
