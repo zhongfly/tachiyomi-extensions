@@ -6,11 +6,12 @@ ext {
     extName = 'CopyMangas'
     pkgNameSuffix = 'zh.copymangas'
     extClass = '.CopyMangas'
-    extVersionCode = 29
+    extVersionCode = 30
 }
 
 dependencies {
     implementation 'com.luhuiguo:chinese-utils:1.0'
+    compileOnly(libs.okhttp)
 }
 
 apply from: "$rootDir/common.gradle"

@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -31,6 +32,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.concurrent.thread
+import java.util.concurrent.TimeUnit
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -43,9 +45,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
-    private var webDomain = WWW_PREFIX + WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
+    private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
+
+    private val groupRegex = Regex("""/group/.*/chapters""")
+    private val baseInterceptor = RateLimitInterceptor(1, 500, TimeUnit.MILLISECONDS)
+    private val useRateLimit = preferences.getBoolean(USE_RATE_LIMIT_PREF, false)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
@@ -55,6 +61,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                   .removeHeader("cache-control")
                   .build()
           )
+        }
+        .addNetworkInterceptor{ chain ->
+            when (useRateLimit && chain.request().url.toString().contains(groupRegex)) {
+                true -> baseInterceptor.intercept(chain)
+                false -> chain.proceed(chain.request())
+            }
         }
         .build()
 
@@ -265,13 +277,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             key = WEB_DOMAIN_PREF
             title = "网页版域名"
             summary = "webview中使用的域名\n当前值：%s"
-            entries = WEB_DOMAINS
-            entryValues = WEB_DOMAIN_INDICES
+            entries = DOMAINS
+            entryValues = DOMAIN_INDICES
             setDefaultValue("0")
             setOnPreferenceChangeListener { _, newValue ->
                 val index = newValue as String
                 preferences.edit().putString(WEB_DOMAIN_PREF, index).apply()
-                webDomain = WWW_PREFIX + WEB_DOMAINS[index.toInt()]
+                webDomain = WWW_PREFIX + DOMAINS[index.toInt()]
                 true
             }
         }.let { screen.addPreference(it) }
@@ -312,6 +324,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 val useWebp = newValue as Boolean
                 preferences.edit().putBoolean(WEBP_PREF, useWebp).apply()
                 apiHeaders = apiHeaders.newBuilder().setWebp(useWebp).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = USE_RATE_LIMIT_PREF
+            title = "启用请求频率限制"
+            summary = "默认关闭"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                useRateLimit = newValue as Boolean
+                preferences.edit().putBoolean(USE_RATE_LIMIT_PREF, useRateLimit).apply()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -375,23 +399,21 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val QUALITY_PREF = "imageQualityZ"
         private const val SC_TITLE_PREF = "showSCTitleZ"
         private const val WEBP_PREF = "useWebpZ"
+        private const val USE_RATE_LIMIT_PREF = "useRateLimitZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
+        private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
         private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
         private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
-        private val WEB_DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
-        private val WEB_DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
         private val QUALITY = arrayOf("800", "1200", "1500")
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
         private const val DEFAULT_VERSION = "1.4.1"
+        private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
         private const val CHAPTER_PAGE_SIZE = 500
-
-        private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
-        private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
     }
 }
