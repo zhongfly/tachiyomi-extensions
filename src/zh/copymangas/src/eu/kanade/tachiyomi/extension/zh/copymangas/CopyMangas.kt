@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -47,7 +48,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
     private val groupRegex = Regex("""/group/.*/chapters""")
-    private val baseInterceptor = RateLimitInterceptor(25, 30, TimeUnit.SECONDS)
+    private val baseInterceptor = RateLimitInterceptor(25, 30)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
