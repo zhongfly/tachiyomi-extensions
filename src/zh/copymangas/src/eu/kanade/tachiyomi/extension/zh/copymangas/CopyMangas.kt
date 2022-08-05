@@ -32,6 +32,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.concurrent.thread
+import java.util.concurrent.TimeUnit
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -48,7 +49,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
     private val groupRegex = Regex("""/group/.*/chapters""")
-    private val baseInterceptor = RateLimitInterceptor(25, 30)
+    private val baseInterceptor = RateLimitInterceptor(1, 500, TimeUnit.MILLISECONDS)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
