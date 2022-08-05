@@ -46,6 +46,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var webDomain = WWW_PREFIX + WEB_DOMAINS[preferences.getString(WEB_DOMAIN_PREF, "0")!!.toInt().coerceIn(0, WEB_DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
+    private val groupRegex = Regex("""/group/.*/chapters""")
+    private val baseInterceptor = RateLimitInterceptor(25, 30, TimeUnit.SECONDS)
 
     override val client: OkHttpClient = network.client.newBuilder()
         .addNetworkInterceptor { chain ->
@@ -55,6 +57,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                   .removeHeader("cache-control")
                   .build()
           )
+        }
+        .addNetworkInterceptor{ chain ->
+            return@Interceptor when (chain.request().url.toString().contains(groupRegex)) {
+                true -> baseInterceptor.intercept(chain)
+                false -> chain.proceed(chain.request())
+            }
         }
         .build()
 
