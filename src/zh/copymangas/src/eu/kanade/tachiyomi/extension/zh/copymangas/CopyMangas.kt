@@ -7,6 +7,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
+import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.extension.zh.copymangas.MangaDto.Companion.parseChapterGroups
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
@@ -44,6 +45,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val preferences: SharedPreferences =
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
+    private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
@@ -58,6 +60,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
               chain.request()
                   .newBuilder()
                   .removeHeader("cache-control")
+                  .removeHeader("if-modified-since")
                   .build()
           )
         }
@@ -155,10 +158,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
         val result = ArrayList<SChapter>()
-        val groups = manga.description?.parseChapterGroups() ?: run {
-            val response = client.newCall(realMangaDetailsRequest(manga)).execute()
-            response.parseAs<MangaWrapperDto>().groups!!.values
-        }
+        val response = client.newCall(realMangaDetailsRequest(manga)).execute()
+        val groups = response.parseAs<MangaWrapperDto>().groups!!.values
         val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
         for (group in groups) {
             result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
@@ -170,11 +171,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val result = ArrayList<SChapter>(0)
         var offset = 0
         var hasNextPage = true
+        val groupName = when {
+            key.equals("default") -> ""
+            convertToSc -> ChineseUtils.toSimplified(name)
+            else -> name
+        }
         while (hasNextPage) {
             val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
-            chapters.list.mapTo(result) { it.toSChapter(name) }
+            chapters.list.mapTo(result) { it.toSChapter(groupName) }
             offset += CHAPTER_PAGE_SIZE
             hasNextPage = offset < chapters.total
         }
@@ -364,7 +370,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "修改后，已添加漫画需要迁移才能更新信息"
             setDefaultValue(false)
             setOnPreferenceChangeListener { _, newValue ->
-                val convertToSc = newValue as Boolean
+                convertToSc = newValue as Boolean
                 preferences.edit().putBoolean(SC_TITLE_PREF, convertToSc).apply()
                 MangaDto.convertToSc = convertToSc
                 true
@@ -434,6 +440,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
-        private const val CHAPTER_PAGE_SIZE = 500
+        private const val CHAPTER_PAGE_SIZE = 400
     }
 }

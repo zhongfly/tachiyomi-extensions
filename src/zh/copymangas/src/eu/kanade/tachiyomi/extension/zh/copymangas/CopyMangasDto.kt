@@ -26,7 +26,7 @@ class MangaDto(
     }
 
     fun toSMangaDetails(groups: ChapterGroups) = toSManga().apply {
-        description = (if (convertToSc) ChineseUtils.toSimplified(brief) else brief ) + groups.toDescription()
+        description = (if (convertToSc) ChineseUtils.toSimplified(brief) else brief )
         genre = buildList(theme!!.size + 1) {
             add(region!!.display)
             theme.mapTo(this) { it.name }
@@ -43,33 +43,6 @@ class MangaDto(
         internal var convertToSc = false
 
         const val URL_PREFIX = "/comic/"
-
-        private const val CHAPTER_GROUP_DELIMITER = "，"
-        private const val CHAPTER_GROUP_PREFIX = "\n\n【其他版本："
-        private const val CHAPTER_GROUP_POSTFIX = "】"
-        private const val NO_CHAPTER_GROUP = "无"
-
-        private fun ChapterGroups.toDescription(): String {
-            if (size <= 1) return CHAPTER_GROUP_PREFIX + NO_CHAPTER_GROUP + CHAPTER_GROUP_POSTFIX
-            val groups = ArrayList<KeywordDto>(size - 1)
-            for ((key, group) in this) {
-                if (key != "default") groups.add(group)
-            }
-            return groups.joinToString(CHAPTER_GROUP_DELIMITER, CHAPTER_GROUP_PREFIX, CHAPTER_GROUP_POSTFIX) {
-                it.name + '#' + it.path_word
-            }
-        }
-
-        fun String.parseChapterGroups(): List<KeywordDto>? {
-            val index = lastIndexOf(CHAPTER_GROUP_PREFIX)
-            if (index < 0) return null
-            val groups = substring(index + CHAPTER_GROUP_PREFIX.length, length - CHAPTER_GROUP_POSTFIX.length)
-            if (groups == NO_CHAPTER_GROUP) return emptyList()
-            return groups.split(CHAPTER_GROUP_DELIMITER).map {
-                val delimiterIndex = it.indexOf('#')
-                KeywordDto(it.substring(0, delimiterIndex), it.substring(delimiterIndex + 1, it.length))
-            }
-        }
     }
 }
 
