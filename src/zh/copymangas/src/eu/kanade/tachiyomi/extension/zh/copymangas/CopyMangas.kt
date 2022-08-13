@@ -60,6 +60,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
               chain.request()
                   .newBuilder()
                   .removeHeader("cache-control")
+                  .removeHeader("if-modified-since")
                   .build()
           )
         }
