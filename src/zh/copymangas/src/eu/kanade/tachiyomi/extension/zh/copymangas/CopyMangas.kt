@@ -155,10 +155,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
         val result = ArrayList<SChapter>()
-        val groups = manga.description?.parseChapterGroups() ?: run {
-            val response = client.newCall(realMangaDetailsRequest(manga)).execute()
-            response.parseAs<MangaWrapperDto>().groups!!.values
-        }
+        val response = client.newCall(realMangaDetailsRequest(manga)).execute()
+        val groups = response.parseAs<MangaWrapperDto>().groups!!.values
         val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
         for (group in groups) {
             result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
