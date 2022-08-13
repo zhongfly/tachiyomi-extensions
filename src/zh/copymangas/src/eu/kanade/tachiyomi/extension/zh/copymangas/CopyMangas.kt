@@ -7,6 +7,7 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
+import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.extension.zh.copymangas.MangaDto.Companion.parseChapterGroups
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.asObservableSuccess
@@ -169,7 +170,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val result = ArrayList<SChapter>(0)
         var offset = 0
         var hasNextPage = true
-        name = when {
+        val groupName = when {
             key=="default" -> ""
             convertToSc -> ChineseUtils.toSimplified(name)
             else -> name
@@ -178,7 +179,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
-            chapters.list.mapTo(result) { it.toSChapter(name) }
+            chapters.list.mapTo(result) { it.toSChapter(groupName) }
             offset += CHAPTER_PAGE_SIZE
             hasNextPage = offset < chapters.total
         }
