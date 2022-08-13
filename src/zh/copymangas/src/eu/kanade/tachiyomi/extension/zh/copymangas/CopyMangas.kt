@@ -44,6 +44,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val preferences: SharedPreferences =
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
+    private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
@@ -168,6 +169,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val result = ArrayList<SChapter>(0)
         var offset = 0
         var hasNextPage = true
+        name = when {
+            key=="default" -> ""
+            convertToSc -> ChineseUtils.toSimplified(name)
+            else -> name
+        }
         while (hasNextPage) {
             val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
@@ -362,7 +368,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "修改后，已添加漫画需要迁移才能更新信息"
             setDefaultValue(false)
             setOnPreferenceChangeListener { _, newValue ->
-                val convertToSc = newValue as Boolean
+                convertToSc = newValue as Boolean
                 preferences.edit().putBoolean(SC_TITLE_PREF, convertToSc).apply()
                 MangaDto.convertToSc = convertToSc
                 true
