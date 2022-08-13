@@ -34,6 +34,10 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.concurrent.thread
 import java.util.concurrent.TimeUnit
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -54,7 +58,23 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
 
+    private val trustManager = object : X509TrustManager {
+        override fun getAcceptedIssuers(): Array<X509Certificate> {
+            return emptyArray()
+        }
+
+        override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+        }
+
+        override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+        }
+    }
+    private val sslContext = SSLContext.getInstance("SSL").apply {
+        init(null, arrayOf(trustManager), SecureRandom())
+    }
+    
     override val client: OkHttpClient = network.client.newBuilder()
+        .sslSocketFactory(sslContext.socketFactory, trustManager)
         .addNetworkInterceptor { chain ->
           chain.proceed(
               chain.request()
@@ -213,7 +233,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         val imageUrl = page.imageUrl!!
         val headers = Headers.Builder().setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build()
 
-        return GET(imageUrl.replace(".c800x.",".c${imageQuality}x."),headers)
+        return GET(imageUrl.replace("c800x.","c${imageQuality}x."),headers)
     }
 
     private inline fun <reified T> Response.parseAs(): T = use {
