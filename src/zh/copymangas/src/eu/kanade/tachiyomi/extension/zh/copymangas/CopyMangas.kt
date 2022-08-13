@@ -171,7 +171,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         var offset = 0
         var hasNextPage = true
         val groupName = when {
-            key=="default" -> ""
+            key.equals("default") -> ""
             convertToSc -> ChineseUtils.toSimplified(name)
             else -> name
         }
