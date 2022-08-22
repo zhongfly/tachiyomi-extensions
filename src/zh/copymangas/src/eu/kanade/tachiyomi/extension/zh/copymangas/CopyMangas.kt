@@ -101,7 +101,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
-    private fun Headers.Builder.setToken(token: String) = set("authorization", if (!token.isNullOrBlank) "Token "+token else "Token")
+    private fun Headers.Builder.setToken(token: String) = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
         .removeAll("if-modified-since")
@@ -405,7 +405,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 val token = newValue as String
-                preferences.edit().putString(TOKEN_PREF, userAgent).apply()
+                preferences.edit().putString(TOKEN_PREF, token).apply()
                 apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                 true
             }
