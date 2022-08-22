@@ -150,6 +150,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
+            builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
