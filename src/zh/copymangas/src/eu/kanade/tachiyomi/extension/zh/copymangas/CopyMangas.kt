@@ -101,6 +101,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
+    private fun Headers.Builder.setToken(token: String) = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
         .removeAll("if-modified-since")
@@ -110,7 +111,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .add("authorization", "Token")
+        .setToken(preferences.getString(TOKEN_PREF, "")!!)
         .add("platform", "3")
         .build()
     
@@ -149,6 +150,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
+            builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -168,7 +170,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun mangaDetailsRequest(manga: SManga): Request = GET(webDomain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=3", apiHeaders)
 
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
         client.newCall(realMangaDetailsRequest(manga)).asObservableSuccess().map { mangaDetailsParse(it) }
@@ -197,7 +199,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             else -> name
         }
         while (hasNextPage) {
-            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&platform=3", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(groupName) }
@@ -211,7 +213,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
-    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}", apiHeaders)
+    override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}?platform=3 ", apiHeaders)
 
     override fun pageListParse(response: Response): List<Page> {
         val result: ChapterPageListWrapperDto = response.parseAs()
@@ -398,6 +400,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
+            key = TOKEN_PREF
+            title = "用户登录Token"
+            summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画"
+            setDefaultValue("")
+            setOnPreferenceChangeListener { _, newValue ->
+                val token = newValue as String
+                preferences.edit().putString(TOKEN_PREF, token).apply()
+                apiHeaders = apiHeaders.newBuilder().setToken(token).build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+
+        EditTextPreference(screen.context).apply {
             key = USER_AGENT_PREF
             title = "User Agent"
             summary = "高级设置，不建议修改"
@@ -445,6 +460,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val WEBP_PREF = "useWebpZ"
         private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
+        private const val TOKEN_PREF = "tokenZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
         private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
