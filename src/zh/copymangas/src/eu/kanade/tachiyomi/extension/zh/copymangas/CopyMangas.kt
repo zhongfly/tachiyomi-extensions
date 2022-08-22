@@ -170,7 +170,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun mangaDetailsRequest(manga: SManga): Request = GET(webDomain + manga.url, headers)
 
     private fun realMangaDetailsRequest(manga: SManga) =
-        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}", apiHeaders)
+        GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=3", apiHeaders)
 
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
         client.newCall(realMangaDetailsRequest(manga)).asObservableSuccess().map { mangaDetailsParse(it) }
@@ -199,7 +199,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             else -> name
         }
         while (hasNextPage) {
-            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset", apiHeaders)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/comic/$manga/group/$key/chapters?limit=$CHAPTER_PAGE_SIZE&offset=$offset&platform=3", apiHeaders)).execute()
             val chapters: ListDto<ChapterDto> = response.parseAs()
             result.ensureCapacity(chapters.total)
             chapters.list.mapTo(result) { it.toSChapter(groupName) }
