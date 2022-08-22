@@ -72,6 +72,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val sslContext = SSLContext.getInstance("SSL").apply {
         init(null, arrayOf(trustManager), SecureRandom())
     }
+    private val groupInterceptor = RateLimitInterceptor(preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(), 1, TimeUnit.MINUTES)
+    private val chapterInterceptor = RateLimitInterceptor(preferences.getString(CHAPTER_API_RATE_PREF, "20")!!.toInt(), 1, TimeUnit.MINUTES)
     
     override val client: OkHttpClient = network.client.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
@@ -86,8 +88,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
         .addNetworkInterceptor{ chain ->
             val url = chain.request().url.toString()
-            val groupInterceptor = RateLimitInterceptor(preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(), 1, TimeUnit.MINUTES)
-            val chapterInterceptor = RateLimitInterceptor(preferences.getString(CHAPTER_API_RATE_PREF, "20")!!.toInt(), 1, TimeUnit.MINUTES)
             when {
                 url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
                 url.contains(chapterRatelimitRegex) -> chapterInterceptor.intercept(chain)
