@@ -481,12 +481,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                         token = response.parseAs<TokenDto>().token
                         preferences.edit().putString(TOKEN_PREF, token).apply()
                         fetchVersionState = 2
-                        Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_LONG).show()
                     } catch (e: Throwable) {
                         fetchVersionState = 0
-                        if (!e.message.isNullOrBlank()) {
-                            Toast.makeText(screen.context, e.message, Toast.LENGTH_LONG).show()
-                        }
                         Log.e("CopyMangas", "failed to fetch token", e)
                     }
                 }
