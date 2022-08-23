@@ -60,6 +60,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
+    private var token = preferences.getString(TOKEN_PREF, "")!!
 
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
@@ -107,7 +108,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
-    private fun Headers.Builder.setToken(token: String) = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
+    private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
         .removeAll("if-modified-since")
@@ -117,7 +118,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .setToken(preferences.getString(TOKEN_PREF, "")!!)
+        .setToken()
         .add("platform", "3")
         .build()
     
@@ -148,6 +149,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val headersBuilder = apiHeaders.newBuilder()
         val offset = PAGE_SIZE * (page - 1)
         val builder = apiUrl.toHttpUrl().newBuilder()
             .addQueryParameter("limit", "$PAGE_SIZE")
@@ -157,13 +159,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
+            headersBuilder.setToken(token)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
                 if (it !is SearchFilter) it.addQuery(builder)
             }
         }
-        return Request.Builder().url(builder.build()).headers(apiHeaders).build()
+        return Request.Builder().url(builder.build()).headers(headersBuilder.build()).build()
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
@@ -412,6 +415,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             title = "用户名"
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
+                fetchVersionState = 0
             }
         }.let(screen::addPreference)
 
@@ -420,6 +424,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             title = "密码"
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
+                fetchVersionState = 0
             }
         }.let(screen::addPreference)
 
@@ -429,9 +434,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
-                val token = newValue as String
+                token = newValue as String
                 preferences.edit().putString(TOKEN_PREF, token).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -472,13 +476,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             .setToken("")
                             .build()                        
                         val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
-                        val token = response.parseAs<TokenDto>().token
+                        token = response.parseAs<TokenDto>().token
                         preferences.edit().putString(TOKEN_PREF, token).apply()
-                        apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                         fetchVersionState = 2
-                        Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_LONG).show()
                     } catch (e: Throwable) {
                         fetchVersionState = 0
+                        Toast.makeText(screen.context, e.toString(), Toast.LENGTH_LONG).show()
                         Log.e("CopyMangas", "failed to fetch token", e)
                     }
                 }
