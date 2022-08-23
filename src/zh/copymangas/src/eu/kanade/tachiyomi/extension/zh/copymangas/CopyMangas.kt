@@ -155,7 +155,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
                 .build()  
-            val response = client.newCall(GET("$apiUrl/api/member/info?platform=3", headers)).execute()
+            val response = client.newCall(GET("$apiUrl/api/v3/member/info?platform=3", headers)).execute()
             result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
