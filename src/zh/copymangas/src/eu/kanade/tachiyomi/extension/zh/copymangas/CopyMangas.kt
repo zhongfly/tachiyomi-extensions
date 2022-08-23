@@ -341,7 +341,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
-    var fetchTokenState = 0 // 0 = not yet or failed, 1 = fetching, 2 = fetched
+    var fetchTokenState = 0 // -1 = failed , 0 = not yet, 1 = fetching, 2 = succeed, 3 = Token is valid no need to refresh
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
@@ -484,6 +484,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 val token = newValue as String
+                fetchTokenState = 0
                 preferences.edit().putString(TOKEN_PREF, token).apply()
                 true
             }
@@ -499,6 +500,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 } else if (fetchTokenState == 2) {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
+                } else if (fetchTokenState == 3) {
+                    Toast.makeText(screen.context, "Token仍有效，不需要更新", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                } else if (fetchTokenState == -1) {
+                    Toast.makeText(screen.context, "Token更新失败，请核对用户名和密码正确无误后，返回重进再次尝试", Toast.LENGTH_SHORT).show()
+                    // return@setOnPreferenceChangeListener false
                 }
                 val username = preferences.getString(USERNAME_PREF, "")!!
                 val password = preferences.getString(PASSWORD_PREF, "")!!
@@ -517,12 +524,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     preferences.edit().putString(TOKEN_PREF, newToken).apply()
                     fetchTokenState = 2   
                 } else {
-                    fetchTokenState = 0
+                    fetchTokenState = -1
                 }
-            } else { fetchTokenState = 0 }
-        } else { fetchTokenState = 0 }
+            } else { fetchTokenState = -1 }
+        } else { fetchTokenState = 3 }
                     } catch (e: Throwable) {
-                        fetchTokenState = 0
+                        fetchTokenState = -1
                         Log.e("CopyMangas", "failed to fetch token", e)
                     }
                 }
