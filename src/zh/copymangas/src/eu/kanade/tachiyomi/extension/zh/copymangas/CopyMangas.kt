@@ -2,7 +2,9 @@ package eu.kanade.tachiyomi.extension.zh.copymangas
 
 import android.app.Application
 import android.content.SharedPreferences
+import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -10,6 +12,7 @@ import androidx.preference.SwitchPreferenceCompat
 import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.extension.zh.copymangas.MangaDto.Companion.parseChapterGroups
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
@@ -19,13 +22,20 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import java.util.concurrent.TimeUnit
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import rx.Observable
 import rx.Single
@@ -33,11 +43,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.concurrent.thread
-import java.util.concurrent.TimeUnit
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
+import kotlin.random.Random
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -54,6 +60,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
+    private var token = preferences.getString(TOKEN_PREF, "")!!
 
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
@@ -83,6 +90,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                   .newBuilder()
                   .removeHeader("cache-control")
                   .removeHeader("if-modified-since")
+                  .removeHeader("cookie")
                   .build()
           )
         }
@@ -101,17 +109,15 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
     private fun Headers.Builder.setVersion(version: String) = set("version", version)
-    private fun Headers.Builder.setToken(token: String) = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
+    private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
-        .removeAll("if-modified-since")
-        .removeAll("cookie")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .setToken(preferences.getString(TOKEN_PREF, "")!!)
+        .setToken()
         .add("platform", "3")
         .build()
     
@@ -142,6 +148,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val headersBuilder = apiHeaders.newBuilder()
         val offset = PAGE_SIZE * (page - 1)
         val builder = apiUrl.toHttpUrl().newBuilder()
             .addQueryParameter("limit", "$PAGE_SIZE")
@@ -151,13 +158,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
+            headersBuilder.setToken(token)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
                 if (it !is SearchFilter) it.addQuery(builder)
             }
         }
-        return Request.Builder().url(builder.build()).headers(apiHeaders).build()
+        return Request.Builder().url(builder.build()).headers(headersBuilder.build()).build()
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
@@ -285,6 +293,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
+    var fetchVersionState = 0 // 0 = not yet or failed, 1 = fetching, 2 = fetched
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
             key = DOMAIN_PREF
@@ -400,15 +410,82 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
+            key = USERNAME_PREF
+            title = "用户名"
+            setOnPreferenceChangeListener { _, newValue ->
+                fetchVersionState = 0
+                preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
+                true
+            }
+        }.let(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = PASSWORD_PREF
+            title = "密码"
+            setOnPreferenceChangeListener { _, newValue ->
+                fetchVersionState = 0
+                preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
+                true
+            }
+        }.let(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
             key = TOKEN_PREF
             title = "用户登录Token"
-            summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画"
+            summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
-                val token = newValue as String
+                token = newValue as String
                 preferences.edit().putString(TOKEN_PREF, token).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                 true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            title = "更新Token"
+            summary = "填写用户名及密码设置后，点击此选项尝试登录以更新Token"
+            setOnPreferenceChangeListener { _, _ ->
+                if (fetchVersionState == 1) {
+                    Toast.makeText(screen.context, "正在尝试登录，请勿反复点击", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                } else if (fetchVersionState == 2) {
+                    Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                }
+                Toast.makeText(screen.context, "开始尝试登录以更新Token", Toast.LENGTH_SHORT).show()
+                fetchVersionState = 1
+                thread {
+                    try {
+                        val username = preferences.getString(USERNAME_PREF, "")!!
+                        var password = preferences.getString(PASSWORD_PREF, "")!!
+                        if (username.isEmpty() || password.isEmpty()) {
+                            Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
+                            throw Exception("请在扩展设置界面输入用户名和密码")
+                        }
+                        val salt = (1000..9999).random().toString()
+                        password = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
+                        val formBody: RequestBody = FormBody.Builder()
+                            .addEncoded("username", username)
+                            .addEncoded("password", password)
+                            .addEncoded("salt",salt)
+                            .addEncoded("platform","3")
+                            .addEncoded("authorization","Token+")
+                            .addEncoded("version",preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
+                            .addEncoded("source","copyApp")
+                            .build()
+                        val headers = apiHeaders.newBuilder()
+                            .setToken("")
+                            .build()                        
+                        val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
+                        token = response.parseAs<TokenDto>().token
+                        preferences.edit().putString(TOKEN_PREF, token).apply()
+                        fetchVersionState = 2
+                    } catch (e: Throwable) {
+                        fetchVersionState = 0
+                        Log.e("CopyMangas", "failed to fetch token", e)
+                    }
+                }
+                false
             }
         }.let { screen.addPreference(it) }
 
@@ -460,6 +537,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val WEBP_PREF = "useWebpZ"
         private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
+        private const val USERNAME_PREF = "usernameZ"
+        private const val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
