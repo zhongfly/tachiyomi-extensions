@@ -126,7 +126,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setReferer(webDomain)
 
     private fun fetchToken(username: String, password: String):String {
-        if (username.isNullOrBlank() || password.isNullOrBlank()) { throw Exception("用户名或密码为空") }        
+        if (username.isNullOrBlank() || password.isNullOrBlank()) { throw Exception("用户名或密码为空") }
+        var newToken = ""
         try {
             val salt = (1000..9999).random().toString()
             val passwordEncoded = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
@@ -140,23 +141,27 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("source","copyApp")
                 .build()                  
             val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", apiHeaders,formBody)).execute()
-            return response.parseAs<TokenDto>().token
+            newToken = response.parseAs<TokenDto>().token
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to fetch token", e)
         }
+        return newToken
     }
 
     private fun verifyToken(token: String): Boolean {
         if (token.isNullOrBlank()) { return false }
+        var result = false
         try {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
                 .build()  
             val response = client.newCall(GET("$apiUrl/api/member/info?platform=3", headers)).execute()
-            return response.code == 200
+            result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
+            
         }
+        return result
     }
 
     init {
@@ -167,8 +172,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     val username = preferences.getString(USERNAME_PREF, "")!!
                     val password = preferences.getString(PASSWORD_PREF, "")!!
                     if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                        token = fetchToken(username, password)
-                        preferences.edit().putString(TOKEN_PREF, token).apply()    
+                        val newToken = fetchToken(username, password)
+                        if (newToken.isNotEmpty() && verifyToken(newToken)){
+                            token = newToken
+                            preferences.edit().putString(TOKEN_PREF, token).apply()    
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -514,9 +522,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-                        token = fetchToken(username, password)
-                        preferences.edit().putString(TOKEN_PREF, token).apply()
-                        fetchTokenState = 2
+                        val newToken = fetchToken(username, password)
+                        if (newToken.isNotEmpty() && verifyToken(newToken)){
+                            token = newToken
+                            preferences.edit().putString(TOKEN_PREF, token).apply()
+                            fetchTokenState = 2
+                        } else {
+                            fetchTokenState = 0
+                        }
                     } catch (e: Throwable) {
                         fetchTokenState = 0
                         Log.e("CopyMangas", "failed to fetch token", e)
