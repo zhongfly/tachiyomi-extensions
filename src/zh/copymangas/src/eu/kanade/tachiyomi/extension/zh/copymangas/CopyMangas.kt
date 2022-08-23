@@ -161,17 +161,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        thread{
+        thread {
             try {
-                if (verifyToken(token)) { return }
-                val username = preferences.getString(USERNAME_PREF, "")!!
-                val password = preferences.getString(PASSWORD_PREF, "")!!
-                if (username.isNullOrBlank() || password.isNullOrBlank()) { return }
-                token = fetchToken(username, password)
-                preferences.edit().putString(TOKEN_PREF, token).apply()
+                if (!verifyToken(token)) { 
+                    val username = preferences.getString(USERNAME_PREF, "")!!
+                    val password = preferences.getString(PASSWORD_PREF, "")!!
+                    if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                        token = fetchToken(username, password)
+                        preferences.edit().putString(TOKEN_PREF, token).apply()    
+                    }
+                }
             } catch (e: Exception) {
                 Log.e("CopyMangas", "failed to init token", e)
-            }
+            }            
         }
     }
 
