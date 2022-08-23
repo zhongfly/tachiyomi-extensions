@@ -374,7 +374,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节目录api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue(RATE_ARRAY.last())
+            setDefaultValue("30")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(GROUP_API_RATE_PREF, rateLimit).apply()
@@ -388,7 +388,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "此值影响向章节图片列表api时发起连接请求的数量。需要重启软件以生效。\n当前值：每分钟 %s 个请求"
             entries = RATE_ARRAY
             entryValues = RATE_ARRAY
-            setDefaultValue(RATE_ARRAY.last())
+            setDefaultValue("20")
             setOnPreferenceChangeListener { _, newValue ->
                 val rateLimit = newValue as String
                 preferences.edit().putString(CHAPTER_API_RATE_PREF, rateLimit).apply()
@@ -452,16 +452,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 }
+                val username = preferences.getString(USERNAME_PREF, "")!!
+                var password = preferences.getString(PASSWORD_PREF, "")!!
+                if (username.isEmpty() || password.isEmpty()) {
+                    Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                }
                 Toast.makeText(screen.context, "开始尝试登录以更新Token", Toast.LENGTH_SHORT).show()
                 fetchVersionState = 1
                 thread {
                     try {
-                        val username = preferences.getString(USERNAME_PREF, "")!!
-                        var password = preferences.getString(PASSWORD_PREF, "")!!
-                        if (username.isEmpty() || password.isEmpty()) {
-                            Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
-                            throw Exception("请在扩展设置界面输入用户名和密码")
-                        }
                         val salt = (1000..9999).random().toString()
                         password = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
                         val formBody: RequestBody = FormBody.Builder()
@@ -546,15 +546,15 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."
-        private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.org", "copymanga.site")
-        private val DOMAIN_INDICES = arrayOf("0", "1", "2", "3")
+        private val DOMAINS = arrayOf("copymanga.net", "copymanga.info", "copymanga.site")
+        private val DOMAIN_INDICES = arrayOf("0", "1", "2")
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..120 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "1.4.1"
+        private const val DEFAULT_VERSION = "1.4.2"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
-        private const val CHAPTER_PAGE_SIZE = 400
+        private const val CHAPTER_PAGE_SIZE = 500
     }
 }
