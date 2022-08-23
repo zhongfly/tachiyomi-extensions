@@ -414,8 +414,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             key = USERNAME_PREF
             title = "用户名"
             setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
                 fetchVersionState = 0
+                preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
+                true
             }
         }.let(screen::addPreference)
 
@@ -423,8 +424,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             key = PASSWORD_PREF
             title = "密码"
             setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
                 fetchVersionState = 0
+                preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
+                true
             }
         }.let(screen::addPreference)
 
