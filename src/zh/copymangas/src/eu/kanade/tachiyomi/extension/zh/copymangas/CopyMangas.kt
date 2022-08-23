@@ -2,7 +2,9 @@ package eu.kanade.tachiyomi.extension.zh.copymangas
 
 import android.app.Application
 import android.content.SharedPreferences
+import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -19,6 +21,11 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import java.util.concurrent.TimeUnit
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.Headers
@@ -33,11 +40,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import kotlin.concurrent.thread
-import java.util.concurrent.TimeUnit
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
+import kotlin.random.Random
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -400,15 +403,82 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }.let { screen.addPreference(it) }
 
         EditTextPreference(screen.context).apply {
+            key = USERNAME_PREF
+            title = "用户名"
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(USERNAME_PREF, newValue as String).commit()
+            }
+        }.let(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = PASSWORD_PREF
+            title = "密码"
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(PASSWORD_PREF, newValue as String).commit()
+            }
+        }.let(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
             key = TOKEN_PREF
             title = "用户登录Token"
-            summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画"
+            summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
                 val token = newValue as String
                 preferences.edit().putString(TOKEN_PREF, token).apply()
                 apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                 true
+            }
+        }.let { screen.addPreference(it) }
+
+        SwitchPreferenceCompat(screen.context).apply {
+            title = "更新Token"
+            summary = "填写用户名及密码设置后，点击此选项尝试登录以更新Token"
+            setOnPreferenceChangeListener { _, _ ->
+                if (fetchVersionState == 1) {
+                    Toast.makeText(screen.context, "正在尝试登录，请勿反复点击", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                } else if (fetchVersionState == 2) {
+                    Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
+                    return@setOnPreferenceChangeListener false
+                }
+                Toast.makeText(screen.context, "开始尝试登录以更新Token", Toast.LENGTH_SHORT).show()
+                fetchVersionState = 1
+                thread {
+                    try {
+                        val username = preferences.getString(USERNAME_PREF, "")!!
+                        var password = preferences.getString(PASSWORD_PREF, "")!!
+                        if (username.isEmpty() || password.isEmpty()) {
+                            Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
+                            throw Exception("请在扩展设置界面输入用户名和密码")
+                        }
+                        val salt = (1000..9999).random()
+                        password = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
+                        val formBody: RequestBody = FormBody.Builder()
+                            .addEncoded("username", username)
+                            .addEncoded("password", password)
+                            .addEncoded("salt",salt)
+                            .addEncoded("platform","3")
+                            .addEncoded("authorization","Token+")
+                            .addEncoded("version",preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
+                            .addEncoded("source","copyApp")
+                            .build()
+                        val headers = apiHeaders.newBuilder()
+                            .setToken("")
+                            // .add("Content-Length", formBody.contentLength().toString())
+                            // .add("Content-Type", formBody.contentType().toString())
+                            .build()                        
+                        val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
+                        val token = response.parseAs<TokenDto>().token!!.values
+                        preferences.edit().putString(TOKEN_PREF, token).apply()
+                        apiHeaders = apiHeaders.newBuilder().setToken(token).build()
+                        fetchVersionState = 2
+                    } catch (e: Throwable) {
+                        fetchVersionState = 0
+                        Log.e("CopyMangas", "failed to fetch token", e)
+                    }
+                }
+                false
             }
         }.let { screen.addPreference(it) }
 
@@ -460,6 +530,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val WEBP_PREF = "useWebpZ"
         private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
+        private cosnt val USERNAME_PREF = "usernameZ"
+        private cosnt val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
