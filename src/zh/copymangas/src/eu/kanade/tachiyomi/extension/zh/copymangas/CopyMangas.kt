@@ -457,7 +457,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
                             throw Exception("请在扩展设置界面输入用户名和密码")
                         }
-                        val salt = (1000..9999).random()
+                        val salt = (1000..9999).random().toString()
                         password = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
                         val formBody: RequestBody = FormBody.Builder()
                             .addEncoded("username", username)
