@@ -500,11 +500,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 }
-
-                if (verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
-                    Toast.makeText(screen.context, "Token仍然有效，不需要更新", Toast.LENGTH_SHORT).show()
-                    return@setOnPreferenceChangeListener false
-                }
                 val username = preferences.getString(USERNAME_PREF, "")!!
                 val password = preferences.getString(PASSWORD_PREF, "")!!
                 if (username.isNullOrBlank() || password.isNullOrBlank()) {
@@ -515,13 +510,17 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-                        val newToken = fetchToken(username, password)
-                        if (newToken.isNotEmpty() && verifyToken(newToken)){
-                            preferences.edit().putString(TOKEN_PREF, newToken).apply()
-                            fetchTokenState = 2
-                        } else {
-                            fetchTokenState = 0
-                        }
+        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
+            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                val newToken = fetchToken(username, password)
+                if (newToken.isNotEmpty() && verifyToken(newToken)){
+                    preferences.edit().putString(TOKEN_PREF, newToken).apply()
+                    fetchTokenState = 2   
+                } else {
+                    fetchTokenState = 0
+                }
+            } else { fetchTokenState = 0 }
+        } else { fetchTokenState = 0 }
                     } catch (e: Throwable) {
                         fetchTokenState = 0
                         Log.e("CopyMangas", "failed to fetch token", e)
