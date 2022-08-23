@@ -12,6 +12,7 @@ import androidx.preference.SwitchPreferenceCompat
 import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.extension.zh.copymangas.MangaDto.Companion.parseChapterGroups
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
@@ -28,11 +29,13 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.Response
 import rx.Observable
 import rx.Single
@@ -288,6 +291,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
+    var fetchVersionState = 0 // 0 = not yet or failed, 1 = fetching, 2 = fetched
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
             key = DOMAIN_PREF
@@ -469,7 +474,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             // .add("Content-Type", formBody.contentType().toString())
                             .build()                        
                         val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
-                        val token = response.parseAs<TokenDto>().token!!.values
+                        val token = response.parseAs<TokenDto>().token
                         preferences.edit().putString(TOKEN_PREF, token).apply()
                         apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                         fetchVersionState = 2
