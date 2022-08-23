@@ -60,7 +60,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
-    private var token = preferences.getString(TOKEN_PREF, "")!!
 
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
@@ -166,21 +165,17 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        try {
-            if (!verifyToken(token)) { 
-                val username = preferences.getString(USERNAME_PREF, "")!!
-                val password = preferences.getString(PASSWORD_PREF, "")!!
-                if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                    val newToken = fetchToken(username, password)
-                    if (newToken.isNotEmpty()){
-                        token = newToken
-                        preferences.edit().putString(TOKEN_PREF, token).apply()    
-                    }
+        val token = preferences.getString(TOKEN_PREF, "")!!
+        if (!verifyToken(token)) { 
+            val username = preferences.getString(USERNAME_PREF, "")!!
+            val password = preferences.getString(PASSWORD_PREF, "")!!
+            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                val newToken = fetchToken(username, password)
+                if (newToken.isNotEmpty()){
+                    preferences.edit().putString(TOKEN_PREF, newToken).apply()    
                 }
             }
-        } catch (e: Exception) {
-            Log.e("CopyMangas", "failed to init token", e)
-        } 
+        }
     }
 
     override fun popularMangaRequest(page: Int): Request {
@@ -212,7 +207,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
-            headersBuilder.setToken(token)
+            headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -489,7 +484,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
-                token = newValue as String
+                val token = newValue as String
                 preferences.edit().putString(TOKEN_PREF, token).apply()
                 true
             }
@@ -505,11 +500,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 } else if (fetchTokenState == 2) {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
-                } else if (verifyToken(token)) { 
+                }
+                val token = preferences.getString(TOKEN_PREF, "")!!
+                if (verifyToken(token)) { 
                     Toast.makeText(screen.context, "Token仍然有效，不需要更新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 }
-
                 val username = preferences.getString(USERNAME_PREF, "")!!
                 val password = preferences.getString(PASSWORD_PREF, "")!!
                 if (username.isNullOrBlank() || password.isNullOrBlank()) {
@@ -522,8 +518,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     try {
                         val newToken = fetchToken(username, password)
                         if (newToken.isNotEmpty() && verifyToken(newToken)){
-                            token = newToken
-                            preferences.edit().putString(TOKEN_PREF, token).apply()
+                            preferences.edit().putString(TOKEN_PREF, newToken).apply()
                             fetchTokenState = 2
                         } else {
                             fetchTokenState = 0
