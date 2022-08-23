@@ -470,14 +470,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             .build()
                         val headers = apiHeaders.newBuilder()
                             .setToken("")
-                            // .add("Content-Length", formBody.contentLength().toString())
-                            // .add("Content-Type", formBody.contentType().toString())
                             .build()                        
                         val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
                         val token = response.parseAs<TokenDto>().token
                         preferences.edit().putString(TOKEN_PREF, token).apply()
                         apiHeaders = apiHeaders.newBuilder().setToken(token).build()
                         fetchVersionState = 2
+                        Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     } catch (e: Throwable) {
                         fetchVersionState = 0
                         Log.e("CopyMangas", "failed to fetch token", e)
