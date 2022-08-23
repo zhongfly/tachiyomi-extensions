@@ -450,7 +450,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                         var password = preferences.getString(PASSWORD_PREF, "")!!
                         if (username.isEmpty() || password.isEmpty()) {
                             Toast.makeText(screen.context, "请在扩展设置界面输入用户名和密码", Toast.LENGTH_SHORT).show()
-                            // throw Exception("请在扩展设置界面输入用户名和密码")
+                            throw Exception("请在扩展设置界面输入用户名和密码")
                         }
                         val salt = (1000..9999).random()
                         password = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
@@ -530,8 +530,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val WEBP_PREF = "useWebpZ"
         private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
-        private cosnt val USERNAME_PREF = "usernameZ"
-        private cosnt val PASSWORD_PREF = "passwordZ"
+        private const val USERNAME_PREF = "usernameZ"
+        private const val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
