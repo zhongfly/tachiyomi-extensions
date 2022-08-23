@@ -90,6 +90,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                   .newBuilder()
                   .removeHeader("cache-control")
                   .removeHeader("if-modified-since")
+                  .removeHeader("cookie")
                   .build()
           )
         }
@@ -111,8 +112,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
-        .removeAll("if-modified-since")
-        .removeAll("cookie")
         .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
