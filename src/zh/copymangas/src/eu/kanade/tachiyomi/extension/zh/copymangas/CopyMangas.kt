@@ -165,8 +165,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        val token = preferences.getString(TOKEN_PREF, "")!!
-        if (!verifyToken(token)) { 
+        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
             val username = preferences.getString(USERNAME_PREF, "")!!
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
@@ -501,8 +500,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 }
-                val token = preferences.getString(TOKEN_PREF, "")!!
-                if (verifyToken(token)) { 
+
+                if (verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
                     Toast.makeText(screen.context, "Token仍然有效，不需要更新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 }
