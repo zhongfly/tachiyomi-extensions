@@ -1,10 +1,13 @@
 package eu.kanade.tachiyomi.extension.zh.copymangas
 
 import android.app.Application
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -124,9 +127,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String, password: String):String {
-        if (username.isNullOrBlank() || password.isNullOrBlank()) { throw Exception("用户名或密码为空") }
-        var newToken = ""
+    private fun fetchToken(username: String, password: String):Map {
+        val results = mutableMapOf("success" to false, "message" to "","token" to "" )
+        if (username.isNullOrBlank() || password.isNullOrBlank()) {
+            results["message"]="用户名或密码为空"
+            return results
+        }
         try {
             val salt = (1000..9999).random().toString()
             val passwordEncoded = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
@@ -140,11 +146,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("source","copyApp")
                 .build()                  
             val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", apiHeaders,formBody)).execute()
-            newToken = response.parseAs<TokenDto>().token
+            if (response.code != 200) {
+                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
+            } else {
+                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token
+                results["success"] = true
+            }
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to fetch token", e)
+            if (e.message.isNullOrBlank()) {
+                results["message"] = e.message
+            }
         }
-        return newToken
+        return results
     }
 
     private fun verifyToken(token: String): Boolean {
@@ -165,13 +179,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
+        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
             val username = preferences.getString(USERNAME_PREF, "")!!
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                val newToken = fetchToken(username, password)
-                if (newToken.isNotEmpty()){
-                    preferences.edit().putString(TOKEN_PREF, newToken).apply()    
+                val results = fetchToken(username, password)
+                if (results["success"] as Boolean){
+                    preferences.edit().putString(TOKEN_PREF, results["token"] as String).apply()
                 }
             }
         }
@@ -301,6 +315,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             throw Exception(json.decodeFromStream<ResultMessageDto>(body!!.byteStream()).message)
         }
         json.decodeFromStream<ResultDto<T>>(body!!.byteStream()).results
+    }
+
+    private inline fun showToast (context: Context, text: String, duration: Int = Toast.LENGTH_SHORT) {
+        if ( Looper.getMainLooper() == Looper.myLooper() ) {
+            Toast.makeText(context, text, duration).show()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, text, duration).show();
+            }
+        }
     }
 
     private var genres: Array<Param> = emptyArray()
@@ -504,7 +528,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     Toast.makeText(screen.context, "Token仍有效，不需要更新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
                 } else if (fetchTokenState == -1) {
-                    Toast.makeText(screen.context, "Token更新失败，请核对用户名和密码正确无误后，返回重进再次尝试", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(screen.context, "Token更新失败，请再次尝试或检查用户名/密码是否有误", Toast.LENGTH_SHORT).show()
                     // return@setOnPreferenceChangeListener false
                 }
                 val username = preferences.getString(USERNAME_PREF, "")!!
@@ -517,19 +541,23 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
-            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                val newToken = fetchToken(username, password)
-                if (newToken.isNotEmpty() && verifyToken(newToken)){
-                    preferences.edit().putString(TOKEN_PREF, newToken).apply()
-                    fetchTokenState = 2   
-                } else {
-                    fetchTokenState = -1
-                }
-            } else { fetchTokenState = -1 }
-        } else { fetchTokenState = 3 }
+                        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
+                            val results = fetchToken(username, password)
+                            if (results["success"] as Boolean){
+                                preferences.edit().putString(TOKEN_PREF, results["token"] as String).apply()
+                                showToast(screen.context, "Token已经成功更新，返回重进刷新")
+                            } else {
+                                val reason = results["message"] as String
+                                showToast(screen.context, "Token获取失败：$reason")
+                                fetchTokenState = -1
+                            }
+                            fetchTokenState = 2
+                        } else {
+                            showToast(screen.context,"Token仍有效，不需要更新")
+                            fetchTokenState = 3
+                        }
                     } catch (e: Throwable) {
-                        fetchTokenState = -1
+                        fetchTokenState = 0
                         Log.e("CopyMangas", "failed to fetch token", e)
                     }
                 }
