@@ -127,7 +127,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String, password: String):Map {
+    private fun fetchToken(username: String, password: String):Map<String, String> {
         val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
             results["message"]="用户名或密码为空"
@@ -154,9 +154,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to fetch token", e)
-            if (e.message.isNullOrBlank()) {
-                results["message"] = e.message
-            }
         }
         return results
     }
@@ -172,7 +169,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
-            
         }
         return result
     }
@@ -547,7 +543,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                                 preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
-                                showToast(screen.context, "Token获取失败：${results["message"]}")
+                                showToast(screen.context, "Token获取失败，${results["message"]}")
                                 fetchTokenState = -1
                             }
                             fetchTokenState = 2
