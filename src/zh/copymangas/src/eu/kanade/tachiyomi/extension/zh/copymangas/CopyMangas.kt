@@ -1,10 +1,13 @@
 package eu.kanade.tachiyomi.extension.zh.copymangas
 
 import android.app.Application
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
@@ -60,7 +63,6 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
     private var apiUrl = API_PREFIX + domain // www. 也可以
-    private var token = preferences.getString(TOKEN_PREF, "")!!
 
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
@@ -125,9 +127,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String, password: String):String {
-        if (username.isNullOrBlank() || password.isNullOrBlank()) { throw Exception("用户名或密码为空") }
-        var newToken = ""
+    private fun fetchToken(username: String, password: String):Map<String, String> {
+        val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
+        if (username.isNullOrBlank() || password.isNullOrBlank()) {
+            results["message"]="用户名或密码为空"
+            return results
+        }
         try {
             val salt = (1000..9999).random().toString()
             val passwordEncoded = Base64.encodeToString("$password-$salt".toByteArray(), Base64.DEFAULT).trim()
@@ -141,11 +146,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("source","copyApp")
                 .build()                  
             val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", apiHeaders,formBody)).execute()
-            newToken = response.parseAs<TokenDto>().token
+            if (response.code != 200) {
+                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
+            } else {
+                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token
+                results["success"] = "true"
+            }
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to fetch token", e)
         }
-        return newToken
+        return results
     }
 
     private fun verifyToken(token: String): Boolean {
@@ -159,28 +169,22 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             result = (response.code == 200)
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to verify token", e)
-            
         }
         return result
     }
 
     init {
         MangaDto.convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
-        try {
-            if (!verifyToken(token)) { 
-                val username = preferences.getString(USERNAME_PREF, "")!!
-                val password = preferences.getString(PASSWORD_PREF, "")!!
-                if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                    val newToken = fetchToken(username, password)
-                    if (newToken.isNotEmpty()){
-                        token = newToken
-                        preferences.edit().putString(TOKEN_PREF, token).apply()    
-                    }
+        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
+            val username = preferences.getString(USERNAME_PREF, "")!!
+            val password = preferences.getString(PASSWORD_PREF, "")!!
+            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                val results = fetchToken(username, password)
+                if (results["success"] != "false"){
+                    preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
                 }
             }
-        } catch (e: Exception) {
-            Log.e("CopyMangas", "failed to init token", e)
-        } 
+        }
     }
 
     override fun popularMangaRequest(page: Int): Request {
@@ -212,7 +216,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
-            headersBuilder.setToken(token)
+            headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -309,6 +313,16 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         json.decodeFromStream<ResultDto<T>>(body!!.byteStream()).results
     }
 
+    private inline fun showToast (context: Context, text: String, duration: Int = Toast.LENGTH_SHORT) {
+        if ( Looper.getMainLooper() == Looper.myLooper() ) {
+            Toast.makeText(context, text, duration).show()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, text, duration).show();
+            }
+        }
+    }
+
     private var genres: Array<Param> = emptyArray()
     private var isFetchingGenres = false
 
@@ -347,7 +361,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         }
     }
 
-    var fetchTokenState = 0 // 0 = not yet or failed, 1 = fetching, 2 = fetched
+    var fetchTokenState = 0 // -1 = failed , 0 = not yet, 1 = fetching, 2 = succeed, 3 = Token is valid no need to refresh
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
@@ -489,7 +503,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             summary = "输入登录Token即可以搜索阅读仅登录用户可见的漫画；可点击下方的“更新Token”来自动获取/更新"
             setDefaultValue("")
             setOnPreferenceChangeListener { _, newValue ->
-                token = newValue as String
+                val token = newValue as String
+                fetchTokenState = 0
                 preferences.edit().putString(TOKEN_PREF, token).apply()
                 true
             }
@@ -505,11 +520,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 } else if (fetchTokenState == 2) {
                     Toast.makeText(screen.context, "Token已经成功更新，返回重进刷新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
-                } else if (verifyToken(token)) { 
-                    Toast.makeText(screen.context, "Token仍然有效，不需要更新", Toast.LENGTH_SHORT).show()
+                } else if (fetchTokenState == 3) {
+                    Toast.makeText(screen.context, "Token仍有效，不需要更新", Toast.LENGTH_SHORT).show()
                     return@setOnPreferenceChangeListener false
+                } else if (fetchTokenState == -1) {
+                    Toast.makeText(screen.context, "Token更新失败，请再次尝试或检查用户名/密码是否有误", Toast.LENGTH_SHORT).show()
+                    // return@setOnPreferenceChangeListener false
                 }
-
                 val username = preferences.getString(USERNAME_PREF, "")!!
                 val password = preferences.getString(PASSWORD_PREF, "")!!
                 if (username.isNullOrBlank() || password.isNullOrBlank()) {
@@ -520,13 +537,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-                        val newToken = fetchToken(username, password)
-                        if (newToken.isNotEmpty() && verifyToken(newToken)){
-                            token = newToken
-                            preferences.edit().putString(TOKEN_PREF, token).apply()
+                        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
+                            val results = fetchToken(username, password)
+                            if (results["success"] != "false"){
+                                preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
+                                showToast(screen.context, "Token已经成功更新，返回重进刷新")
+                            } else {
+                                showToast(screen.context, "Token获取失败，${results["message"]}")
+                                fetchTokenState = -1
+                            }
                             fetchTokenState = 2
                         } else {
-                            fetchTokenState = 0
+                            showToast(screen.context,"Token仍有效，不需要更新")
+                            fetchTokenState = 3
                         }
                     } catch (e: Throwable) {
                         fetchTokenState = 0
