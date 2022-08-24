@@ -128,7 +128,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setReferer(webDomain)
 
     private fun fetchToken(username: String, password: String):Map {
-        val results = mutableMapOf("success" to false, "message" to "","token" to "" )
+        val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
             results["message"]="用户名或密码为空"
             return results
@@ -150,7 +150,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
             } else {
                 results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token
-                results["success"] = true
+                results["success"] = "true"
             }
         } catch (e: Exception) {
             Log.e("CopyMangas", "failed to fetch token", e)
@@ -184,8 +184,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                 val results = fetchToken(username, password)
-                if (results["success"] as Boolean){
-                    preferences.edit().putString(TOKEN_PREF, results["token"] as String).apply()
+                if (results["success"] != "false"){
+                    preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
                 }
             }
         }
@@ -543,12 +543,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     try {
                         if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
                             val results = fetchToken(username, password)
-                            if (results["success"] as Boolean){
-                                preferences.edit().putString(TOKEN_PREF, results["token"] as String).apply()
+                            if (results["success"] != "false"){
+                                preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
-                                val reason = results["message"] as String
-                                showToast(screen.context, "Token获取失败：$reason")
+                                showToast(screen.context, "Token获取失败：${results["message"]}")
                                 fetchTokenState = -1
                             }
                             fetchTokenState = 2
