@@ -25,22 +25,14 @@ private val SEARCH_FILTER_VALUES = arrayOf(
 
 class GenreFilter(genres: Array<Param>) : CopyMangaFilter("题材", "theme", genres)
 
-class RegionFilter : CopyMangaFilter("地区", "region", REGION_VALUES)
+class TopFilter : CopyMangaFilter("地区/状态", "top", TOP_VALUES)
 
-private val REGION_VALUES = arrayOf(
+private val TOP_VALUES = arrayOf(
     Param("全部", ""),
-    Param("日本", "0"),
-    Param("韩国", "1"),
-    Param("欧美", "2"),
-)
-
-class StatusFilter : CopyMangaFilter("状态", "status", STATUS_VALUES)
-
-private val STATUS_VALUES = arrayOf(
-    Param("全部", ""),
-    Param("连载中", "0"),
-    Param("已完结", "1"),
-    Param("短篇", "2"),
+    Param("日本", "japan"),
+    Param("韩国", "korea"),
+    Param("欧美", "west"),
+    Param("已完结", "finish"),
 )
 
 class SortFilter : CopyMangaFilter("排序", "ordering", SORT_VALUES)

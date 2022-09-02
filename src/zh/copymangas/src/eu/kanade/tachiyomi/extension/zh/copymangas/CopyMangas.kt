@@ -338,8 +338,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             Filter.Separator(),
             Filter.Header("分类（搜索文本时无效）"),
             genreFilter,
-            RegionFilter(),
-            StatusFilter(),
+            TopFilter(),
             SortFilter(),
         )
     }
