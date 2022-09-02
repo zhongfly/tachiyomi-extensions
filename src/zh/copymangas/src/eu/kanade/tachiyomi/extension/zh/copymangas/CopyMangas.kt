@@ -349,7 +349,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         thread {
             try {
                 val response = client.newCall(GET("$apiUrl/api/v3/theme/comic/count?limit=500&offset=0&free_type=1&platform=3", apiHeaders)).execute()
-                val list = response.parseAs<ListDto<KeywordDto>>().list
+                val list = response.parseAs<ListDto<KeywordDto>>().list.sortedBy { it.name }
                 val result = ArrayList<Param>(list.size + 1).apply { add(Param("全部", "")) }
                 genres = list.mapTo(result) { it.toParam() }.toTypedArray()
             } catch (e: Exception) {
