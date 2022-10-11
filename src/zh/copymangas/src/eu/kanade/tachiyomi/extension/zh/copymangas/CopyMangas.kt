@@ -66,6 +66,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
+    private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
 
     private val trustManager = object : X509TrustManager {
         override fun getAcceptedIssuers(): Array<X509Certificate> {
@@ -298,10 +299,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
 
     private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
     override fun imageRequest(page: Page): Request {
-        val imageUrl = page.imageUrl!!
+        var imageUrl = page.imageUrl!!
+        imageUrl = imageQualityRegex.replace(imageUrl,"c${imageQuality}x.")
         val headers = Headers.Builder().setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build()
 
-        return GET(imageUrl.replace("c800x.","c${imageQuality}x."),headers)
+        return GET(imageUrl,headers)
     }
 
     private inline fun <reified T> Response.parseAs(): T = use {
