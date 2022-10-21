@@ -150,7 +150,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val headers = apiHeaders.newBuilder().setToken().build()
             val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
             if (response.code != 200) {
-                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
+                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message ?: ""
             } else {
                 results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token!!
                 results["success"] = "true"
