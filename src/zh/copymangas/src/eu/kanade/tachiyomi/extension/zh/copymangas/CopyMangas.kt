@@ -129,7 +129,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String, password: String):Map<String, String> {
+    private fun fetchToken(username: String?, password: String?):Map<String, String> {
         val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
             results["message"]="用户名或密码为空"
