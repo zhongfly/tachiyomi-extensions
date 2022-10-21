@@ -185,7 +185,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 val results = fetchToken(username, password)
                 if ( results["success"] != "false"){
                     preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) token else "").build()
+                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
                 }
             }
         }
@@ -561,7 +561,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             val results = fetchToken(username, password)
                             if ( results["success"] != "false"){
                                 preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"] else "").build()
+                                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
                                 showToast(screen.context, "Token获取失败，${results["message"]}")
