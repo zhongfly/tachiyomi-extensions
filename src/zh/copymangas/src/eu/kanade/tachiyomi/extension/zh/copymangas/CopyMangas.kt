@@ -152,7 +152,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             if (response.code != 200) {
                 results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
             } else {
-                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token
+                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token!!
                 results["success"] = "true"
             }
         } catch (e: Exception) {
