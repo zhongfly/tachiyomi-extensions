@@ -59,6 +59,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     private var convertToSc = preferences.getBoolean(SC_TITLE_PREF, false)
+    private var alwaysUseToken = preferences.getBoolean(ALWAYS_USE_TOKEN_PREF, false)
     private var domain = DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     private var webDomain = WWW_PREFIX + DOMAINS[preferences.getString(DOMAIN_PREF, "0")!!.toInt().coerceIn(0, DOMAINS.size - 1)]
     override val baseUrl = webDomain
@@ -120,7 +121,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .setToken()
+        .setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "")
         .add("platform", "3")
         .build()
     
@@ -146,11 +147,12 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addEncoded("version",preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
                 .addEncoded("source","copyApp")
                 .build()                  
-            val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", apiHeaders,formBody)).execute()
+            val headers = apiHeaders.newBuilder().setToken().build()
+            val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
             if (response.code != 200) {
                 results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
             } else {
-                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token
+                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token!!
                 results["success"] = "true"
             }
         } catch (e: Exception) {
@@ -181,8 +183,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                 val results = fetchToken(username, password)
-                if (results["success"] != "false"){
-                    preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
+                if ( results["success"] != "false"){
+                    preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
+                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
                 }
             }
         }
@@ -217,7 +220,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
             builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
-            headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
+            if (!alwaysUseToken) {
+                headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
+            }
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
@@ -478,6 +483,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             }
         }.let { screen.addPreference(it) }
 
+        SwitchPreferenceCompat(screen.context).apply {
+            key = ALWAYS_USE_TOKEN_PREF
+            title = "始终使用Token"
+            summary = "如果启用，将始终使用Token来请求api，有可能由于频繁的请求api而被封号；如果禁用，则只在搜索时使用Token"
+            setDefaultValue(false)
+            setOnPreferenceChangeListener { _, newValue ->
+                alwaysUseToken = newValue as Boolean
+                preferences.edit().putBoolean(ALWAYS_USE_TOKEN_PREF, alwaysUseToken).apply()
+                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "").build()
+                true
+            }
+        }.let { screen.addPreference(it) }
+        
         EditTextPreference(screen.context).apply {
             key = USERNAME_PREF
             title = "用户名"
@@ -507,6 +525,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 val token = newValue as String
                 fetchTokenState = 0
                 preferences.edit().putString(TOKEN_PREF, token).apply()
+                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "").build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -540,8 +559,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     try {
                         if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
                             val results = fetchToken(username, password)
-                            if (results["success"] != "false"){
-                                preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
+                            if ( results["success"] != "false"){
+                                preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
+                                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
                                 showToast(screen.context, "Token获取失败，${results["message"]}")
@@ -609,6 +629,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val WEBP_PREF = "useWebpZ"
         private const val GROUP_API_RATE_PREF = "groupApiRateZ"
         private const val CHAPTER_API_RATE_PREF = "chapterApiRateZ"
+        private const val ALWAYS_USE_TOKEN_PREF = "alwaysUseTokenZ"
         private const val USERNAME_PREF = "usernameZ"
         private const val PASSWORD_PREF = "passwordZ"
         private const val TOKEN_PREF = "tokenZ"
