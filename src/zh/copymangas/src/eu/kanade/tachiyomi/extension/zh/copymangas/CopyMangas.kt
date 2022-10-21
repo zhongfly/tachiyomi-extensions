@@ -129,7 +129,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String?, password: String?):Map<String, String> {
+    private fun fetchToken(username: String, password: String):Map<String, String> {
         val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
             results["message"]="用户名或密码为空"
@@ -150,7 +150,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val headers = apiHeaders.newBuilder().setToken().build()
             val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
             if (response.code != 200) {
-                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message ?: ""
+                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
             } else {
                 results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token!!
                 results["success"] = "true"
@@ -182,10 +182,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val username = preferences.getString(USERNAME_PREF, "")!!
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
-                val results = fetchToken(username!!, password!!)
-                if (results["success"] != "false"){
-                    preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
-                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"] else "").build()
+                val results = fetchToken(username, password)
+                val token = results["success"]!!
+                if ( token != "false"){
+                    preferences.edit().putString(TOKEN_PREF, token).apply()
+                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) token else "").build()
                 }
             }
         }
@@ -558,7 +559,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 thread {
                     try {
                         if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
-                            val results = fetchToken(username!!, password!!)
+                            val results = fetchToken(username, password)
                             if (results["success"] != "false"){
                                 preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
                                 apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"] else "").build()
