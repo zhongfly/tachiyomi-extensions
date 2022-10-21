@@ -183,9 +183,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                 val results = fetchToken(username, password)
-                val token = results["success"]!!
-                if ( token != "false"){
-                    preferences.edit().putString(TOKEN_PREF, token).apply()
+                if ( results["success"] != "false"){
+                    preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
                     apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) token else "").build()
                 }
             }
@@ -560,8 +559,8 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     try {
                         if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
                             val results = fetchToken(username, password)
-                            if (results["success"] != "false"){
-                                preferences.edit().putString(TOKEN_PREF, results["token"]).apply()
+                            if ( results["success"] != "false"){
+                                preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
                                 apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"] else "").build()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
