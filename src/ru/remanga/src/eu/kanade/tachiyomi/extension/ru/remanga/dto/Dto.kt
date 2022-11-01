@@ -1,3 +1,5 @@
+package eu.kanade.tachiyomi.extension.ru.remanga.dto
+
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -72,11 +74,6 @@ data class PageWrapperDto<T>(
 )
 
 @Serializable
-data class PageWrapperDtoNoLimit<T>(
-    val content: List<T>
-)
-
-@Serializable
 data class SeriesWrapperDto<T>(
     val content: T
 )
@@ -119,5 +116,5 @@ data class ChunksPageDto(
 @Serializable
 data class UserDto(
     val id: Long,
-    val access_token: String
+    val access_token: String? = null
 )

@@ -1,3 +1,28 @@
+## 1.3.7
+
+### Features
+
+* New Sort filter: Time to read
+* New Filter: Year release filter
+
+### Fix
+* Filters can now be used together with search
+* Epub and pdfs no longer show in format filter (currently not supported)
+
+## 1.3.6
+
+### Fix
+
+* Fixed "lateinit property title not initialized"
+
+## 1.3.5
+
+### Features
+
+* Ignore DOH
+* Added sort option `Item Added`
+* Latest button now shows latest `Item Added`
+
 ## 1.3.4
 
 ### Features

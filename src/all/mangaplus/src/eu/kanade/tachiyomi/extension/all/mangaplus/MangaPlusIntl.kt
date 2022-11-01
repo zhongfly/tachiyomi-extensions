@@ -31,4 +31,24 @@ class MangaPlusIntl(lang: Language) {
         Language.PORTUGUESE_BR -> "Somente poucos títulos suportam a desativação desta configuração."
         else -> "Only a few titles supports disabling this setting."
     }
+
+    val chapterExpired: String = when (lang) {
+        Language.PORTUGUESE_BR -> "O período de leitura do capítulo expirou."
+        else -> "The chapter reading period has expired."
+    }
+
+    val notAvailable: String = when (lang) {
+        Language.PORTUGUESE_BR -> "Título não disponível neste idioma."
+        else -> "Title not available in this language."
+    }
+
+    val unknownError: String = when (lang) {
+        Language.PORTUGUESE_BR -> "Um erro desconhecido ocorreu."
+        else -> "An unknown error happened."
+    }
+
+    val titleRemoved: String = when (lang) {
+        Language.PORTUGUESE_BR -> "Este título foi removido do catálogo do MANGA Plus."
+        else -> "This title was removed from the MANGA Plus catalogue."
+    }
 }

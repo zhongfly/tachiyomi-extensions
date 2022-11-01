@@ -19,8 +19,9 @@ import java.util.concurrent.TimeUnit
 
 class MangaRawClub : ParsedHttpSource() {
 
-    override val name = "manga-raw.club"
-    override val baseUrl = "https://www.manga-raw.club"
+    override val id = 734865402529567092
+    override val name = "mcreader.net"
+    override val baseUrl = "https://www.mreader.co"
     override val lang = "en"
     override val supportsLatest = true
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
@@ -40,7 +41,7 @@ class MangaRawClub : ParsedHttpSource() {
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
-        return GET("$baseUrl/listt/manga/?results=$page", headers)
+        return GET("$baseUrl/jumbo/manga/?results=$page", headers)
     }
 
     override fun searchMangaSelector() = "ul.novel-list > li.novel-item"
@@ -71,7 +72,7 @@ class MangaRawClub : ParsedHttpSource() {
             manga.author = author
 
         var description = document.select(".description").first()?.text() ?: ""
-        description = description.substringAfter("The Summary is").trim()
+        description = description.substringAfter("Summary is").trim()
 
         val otherTitle = document.select(".alternative-title").first()?.text()?.trim() ?: ""
         if (otherTitle.isNotEmpty() && otherTitle.lowercase(Locale.ROOT) != "updating")
@@ -80,6 +81,9 @@ class MangaRawClub : ParsedHttpSource() {
 
         manga.genre = document.select(".categories a[href*=genre]").joinToString(", ") {
             it.attr("title").removeSuffix("Genre").trim()
+                .split(" ").joinToString(" ") { char ->
+                    char.lowercase().replaceFirstChar { c -> c.uppercase() }
+                }
         }
 
         val statusElement = document.select("div.header-stats")

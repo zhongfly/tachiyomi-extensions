@@ -1,3 +1,57 @@
+## 1.3.30
+
+### Refactor
+
+* Replace CryptoJS with Native Kotlin Functions
+* Remove QuickJS dependency
+
+## 1.3.29
+
+### Refactor
+
+* Cleanup pageListParse function
+* Replace Duktape with QuickJS
+
+## 1.3.28
+
+### Features
+
+* Add mirror `batocc.com`
+* Add mirror `batotwo.com`
+* Add mirror `mangatoto.net`
+* Add mirror `mangatoto.org`
+* Add mirror `mycordant.co.uk`
+* Add mirror `dto.to`
+* Add mirror `hto.to`
+* Add mirror `mto.to`
+* Add mirror `wto.to`
+* Remove mirror `mycdhands.com`
+
+## 1.3.27
+
+### Features
+
+* Change default popular sort by `Most Views Totally`
+
+## 1.3.26
+
+### Fix
+
+* Update author and artist parsing
+
+## 1.3.25
+
+### Fix
+
+* Status parsing
+* Artist name parsing
+
+## 1.3.24
+
+### Fix
+
+* Bump versions for individual extension with URL handler activities
+
 ## 1.2.23
 
 ### Fix
@@ -109,7 +163,7 @@
 
 ### Features
 
-* Scanlotor support
+* Scanlator support
 
 ### Fix
 

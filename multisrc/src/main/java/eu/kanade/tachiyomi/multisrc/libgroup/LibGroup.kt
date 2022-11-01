@@ -13,8 +13,6 @@ import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
-import okhttp3.Interceptor
-import okhttp3.MediaType.Companion.toMediaType
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
@@ -34,6 +32,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -42,9 +42,12 @@ import rx.Observable
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.absoluteValue
+import kotlin.random.Random
 
 abstract class LibGroup(
     override val name: String,
@@ -73,22 +76,31 @@ abstract class LibGroup(
             response
     }
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .rateLimit(3)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(1, TimeUnit.MINUTES)
+        .rateLimit(2)
+        .addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            if (response.code == 419)
+                throw IOException("HTTP error ${response.code}. Для завершения авторизации необходимо перезапустить приложение с полной остановкой.")
+            return@addInterceptor response
+        }
         .build()
 
     override fun headersBuilder() = Headers.Builder().apply {
         // User-Agent required for authorization through third-party accounts (mobile version for correct display in WebView)
         add("User-Agent", "Mozilla/5.0 (Linux; Android 10; SM-G980F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Mobile Safari/537.36")
-        add("Accept", "image/webp,*/*;q=0.8")
+        add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
         add("Referer", baseUrl)
     }
+
+    private val userAgentRandomizer = "${Random.nextInt().absoluteValue}"
 
     private var csrfToken: String = ""
 
     private fun catalogHeaders() = Headers.Builder()
         .apply {
+            add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 Edg/100.0.$userAgentRandomizer")
             add("Accept", "application/json, text/plain, */*")
             add("X-Requested-With", "XMLHttpRequest")
             add("x-csrf-token", csrfToken)
@@ -112,31 +124,18 @@ abstract class LibGroup(
     }
 
     private fun fetchLatestMangaFromApi(page: Int): Observable<MangasPage> {
-        return client.newCall(POST("$baseUrl/latest-updates?page=$page", catalogHeaders()))
-            .asObservable().doOnNext { response ->
-                if (!response.isSuccessful) {
-                    response.close()
-                    if (response.code == 419) throw Exception("Для завершения авторизации необходимо перезапустить приложение с полной остановкой.") else throw Exception("HTTP error ${response.code}")
-                }
-            }
+        return client.newCall(POST("$baseUrl/filterlist?dir=desc&sort=last_chapter_at&page=$page", catalogHeaders()))
+            .asObservableSuccess()
             .map { response ->
                 latestUpdatesParse(response)
             }
     }
 
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        val resBody = response.body!!.string()
-        val result = json.decodeFromString<JsonObject>(resBody)
-        val itemsLatest = result["data"]?.jsonArray?.map { popularMangaFromElement(it) }
-        if (itemsLatest != null) {
-            val hasNextPage = result["next_page_url"]?.jsonPrimitive?.contentOrNull != null
-            return MangasPage(itemsLatest, hasNextPage)
-        }
-        return MangasPage(emptyList(), false)
-    }
+    override fun latestUpdatesParse(response: Response) =
+        popularMangaParse(response)
 
     // Popular
-    override fun popularMangaRequest(page: Int) = GET("$baseUrl/login", headers)
+    override fun popularMangaRequest(page: Int) = GET(baseUrl, headers)
     override fun fetchPopularManga(page: Int): Observable<MangasPage> {
         if (csrfToken.isEmpty()) {
             return client.newCall(popularMangaRequest(page))
@@ -153,12 +152,7 @@ abstract class LibGroup(
 
     private fun fetchPopularMangaFromApi(page: Int): Observable<MangasPage> {
         return client.newCall(POST("$baseUrl/filterlist?dir=desc&sort=views&page=$page", catalogHeaders()))
-            .asObservable().doOnNext { response ->
-                if (!response.isSuccessful) {
-                    response.close()
-                    if (response.code == 419) throw Exception("Для завершения авторизации необходимо перезапустить приложение с полной остановкой.") else throw Exception("HTTP error ${response.code}")
-                }
-            }
+            .asObservableSuccess()
             .map { response ->
                 popularMangaParse(response)
             }
@@ -184,7 +178,7 @@ abstract class LibGroup(
             isEng.equals("eng") && el.jsonObject["eng_name"]?.jsonPrimitive?.content.orEmpty().isNotEmpty() -> el.jsonObject["eng_name"]!!.jsonPrimitive.content
             else -> el.jsonObject["name"]!!.jsonPrimitive.content
         }
-        thumbnail_url = if (el.jsonObject["covers"] != null) baseUrl + el.jsonObject["covers"]!!.jsonObject["default"]!!.jsonPrimitive.content
+        thumbnail_url = if (el.jsonObject["coverImage"] != null) baseUrl + el.jsonObject["coverImage"]!!.jsonPrimitive.content
         else baseUrl + "/uploads/cover/" + slug + "/cover/" + el.jsonObject["cover"]!!.jsonPrimitive.content + "_250x350.jpg"
         url = "/$slug"
     }
@@ -209,10 +203,8 @@ abstract class LibGroup(
             rawCategory.isNotBlank() -> rawCategory
             else -> "Манга"
         }
-        var rawAgeStop = document.select(".media-short-info .media-short-info__item[data-caution]").text()
-        if (rawAgeStop.isEmpty()) {
-            rawAgeStop = "0+"
-        }
+
+        val rawAgeStop = document.select(".media-short-info .media-short-info__item[data-caution]").text()
 
         val ratingValue = document.select(".media-rating__value").last().text().toFloat() * 2
         val ratingVotes = document.select(".media-rating__votes").last().text()
@@ -238,20 +230,27 @@ abstract class LibGroup(
         manga.thumbnail_url = document.select(".media-header__cover").attr("src")
         manga.author = body.select("div.media-info-list__title:contains(Автор) + div a").joinToString { it.text() }
         manga.artist = body.select("div.media-info-list__title:contains(Художник) + div a").joinToString { it.text() }
+
+        val StatusTranslate = body.select("div.media-info-list__title:contains(Статус перевода) + div").text().lowercase(Locale.ROOT)
+        val StatusTitle = body.select("div.media-info-list__title:contains(Статус тайтла) + div").text().lowercase(Locale.ROOT)
+
         manga.status = if (document.html().contains("paper empty section")
         ) {
             SManga.LICENSED
         } else
-            when (
-                body.select("div.media-info-list__title:contains(Статус тайтла) + div")
-                    .text()
-                    .lowercase(Locale.ROOT)
-            ) {
-                "онгоинг" -> SManga.ONGOING
-                "завершён" -> SManga.COMPLETED
-                "приостановлен" -> SManga.ON_HIATUS
-                "выпуск прекращён" -> SManga.CANCELLED
-                else -> SManga.UNKNOWN
+            when {
+                StatusTranslate.contains("завершен") && StatusTitle.contains("приостановлен") || StatusTranslate.contains("заморожен") || StatusTranslate.contains("заброшен") -> SManga.ON_HIATUS
+                StatusTranslate.contains("завершен") && StatusTitle.contains("выпуск прекращён") -> SManga.CANCELLED
+                StatusTranslate.contains("продолжается") -> SManga.ONGOING
+                StatusTranslate.contains("завершен") -> SManga.COMPLETED
+                else -> when (StatusTitle) {
+                    "онгоинг" -> SManga.ONGOING
+                    "анонс" -> SManga.ONGOING
+                    "завершён" -> SManga.COMPLETED
+                    "приостановлен" -> SManga.ON_HIATUS
+                    "выпуск прекращён" -> SManga.CANCELLED
+                    else -> SManga.UNKNOWN
+                }
             }
         manga.genre = category + ", " + rawAgeStop + ", " + genres.joinToString { it.trim() }
 
@@ -268,9 +267,23 @@ abstract class LibGroup(
         return manga
     }
 
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
+        return client.newCall(mangaDetailsRequest(manga))
+            .asObservable().doOnNext { response ->
+                if (!response.isSuccessful) {
+                    if (response.code == 404 && response.asJsoup().select(".m-menu__sign-in").isNotEmpty()) throw Exception("HTTP error ${response.code}. Для просмотра 18+ контента необходима авторизация через WebView") else throw Exception("HTTP error ${response.code}")
+                }
+            }
+            .map { response ->
+                mangaDetailsParse(response)
+            }
+    }
     // Chapters
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()
+        val rawAgeStop = document.select(".media-short-info .media-short-info__item[data-caution]").text()
+        if (rawAgeStop == "18+" && document.select(".m-menu__sign-in").isNotEmpty())
+            throw Exception("Для просмотра 18+ контента необходима авторизация через WebView")
         val redirect = document.html()
         if (redirect.contains("paper empty section")) {
             return emptyList()
@@ -292,15 +305,27 @@ abstract class LibGroup(
             sortChaptersByTranslator(sortingList, chaptersList, slug, branches)
         } else {
             chaptersList
-                ?.filter { it.jsonObject["status"]?.jsonPrimitive?.intOrNull != 2 }
+                ?.filter { it.jsonObject["status"]?.jsonPrimitive?.intOrNull != 2 && it.jsonObject["price"]?.jsonPrimitive?.intOrNull == 0 }
                 ?.map { chapterFromElement(it, sortingList, slug, null, null, teams, chaptersList) }
         }
 
         return chapters ?: emptyList()
     }
 
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> {
+        return client.newCall(mangaDetailsRequest(manga))
+            .asObservable().doOnNext { response ->
+                if (!response.isSuccessful) {
+                    if (response.code == 404 && response.asJsoup().select(".m-menu__sign-in").isNotEmpty()) throw Exception("HTTP error ${response.code}. Для просмотра 18+ контента необходима авторизация через WebView") else throw Exception("HTTP error ${response.code}")
+                }
+            }
+            .map { response ->
+                chapterListParse(response)
+            }
+    }
+
     private fun sortChaptersByTranslator
-            (sortingList: String?, chaptersList: JsonArray?, slug: String, branches: List<JsonElement>): List<SChapter>? {
+    (sortingList: String?, chaptersList: JsonArray?, slug: String, branches: List<JsonElement>): List<SChapter>? {
         var chapters: List<SChapter>? = null
         val volume = "(?<=/v)[0-9]+(?=/c[0-9]+)".toRegex()
         val tempChaptersList = mutableListOf<SChapter>()
@@ -338,7 +363,7 @@ abstract class LibGroup(
     }
 
     private fun chapterFromElement
-            (chapterItem: JsonElement, sortingList: String?, slug: String, teamIdParam: Int? = null, branches: List<JsonElement>? = null, teams: List<JsonElement>? = null, chaptersList: JsonArray? = null): SChapter {
+    (chapterItem: JsonElement, sortingList: String?, slug: String, teamIdParam: Int? = null, branches: List<JsonElement>? = null, teams: List<JsonElement>? = null, chaptersList: JsonArray? = null): SChapter {
         val chapter = SChapter.create()
 
         val volume = chapterItem.jsonObject["chapter_volume"]!!.jsonPrimitive.int
@@ -355,8 +380,7 @@ abstract class LibGroup(
         val fullNameChapter = "Том $volume. Глава $number"
         chapter.scanlator = if (teams?.size == 1) teams[0].jsonObject["name"]?.jsonPrimitive?.content else if (isScanlatorId.orEmpty().isNotEmpty()) isScanlatorId!![0].jsonObject["name"]?.jsonPrimitive?.content else branches?.let { getScanlatorTeamName(it, chapterItem) } ?: if ((preferences.getBoolean(isScan_USER, false)) || (chaptersList?.distinctBy { it.jsonObject["username"]!!.jsonPrimitive.content }?.size == 1)) chapterItem.jsonObject["username"]!!.jsonPrimitive.content else null
         chapter.name = if (nameChapter.isNullOrBlank()) fullNameChapter else "$fullNameChapter - $nameChapter"
-        chapter.date_upload = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            .parse(chapterItem.jsonObject["chapter_created_at"]!!.jsonPrimitive.content.substringBefore(" "))?.time ?: 0L
+        chapter.date_upload = simpleDateFormat.parse(chapterItem.jsonObject["chapter_created_at"]!!.jsonPrimitive.content.substringBefore(" "))?.time ?: 0L
         chapter.chapter_number = number.toFloat()
 
         return chapter
@@ -384,9 +408,10 @@ abstract class LibGroup(
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
 
+        // redirect Регистрация 18+
         val redirect = document.html()
         if (!redirect.contains("window.__info")) {
-            if (redirect.contains("hold-transition login-page")) {
+            if (redirect.contains("auth-layout")) {
                 throw Exception("Для просмотра 18+ контента необходима авторизация через WebView")
             }
         }
@@ -438,7 +463,7 @@ abstract class LibGroup(
 
     private fun checkImage(url: String): Boolean {
         val response = client.newCall(Request.Builder().url(url).head().headers(headers).build()).execute()
-        return response.isSuccessful && (response.header("content-length", "0")?.toInt()!! > 320)
+        return response.isSuccessful && (response.header("content-length", "0")?.toInt()!! > 600)
     }
 
     override fun fetchImageUrl(page: Page): Observable<String> {
@@ -664,6 +689,8 @@ abstract class LibGroup(
 
         private const val LANGUAGE_PREF = "MangaLibTitleLanguage"
         private const val LANGUAGE_PREF_Title = "Выбор языка на обложке"
+
+        private val simpleDateFormat by lazy { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     }
 
     private var server: String? = preferences.getString(SERVER_PREF, null)

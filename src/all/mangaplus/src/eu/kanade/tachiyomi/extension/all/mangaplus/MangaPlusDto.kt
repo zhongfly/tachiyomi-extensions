@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.extension.all.mangaplus
 
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -10,13 +12,10 @@ data class MangaPlusResponse(
 )
 
 @Serializable
-data class ErrorResult(
-    val englishPopup: Popup,
-    val popups: List<Popup> = emptyList()
-) {
+data class ErrorResult(val popups: List<Popup> = emptyList()) {
 
-    fun langPopup(lang: Language): Popup =
-        popups.firstOrNull { it.language == lang } ?: englishPopup
+    fun langPopup(lang: Language): Popup? =
+        popups.firstOrNull { it.language == lang }
 }
 
 @Serializable
@@ -57,7 +56,7 @@ data class WebHomeViewV3(val groups: List<UpdatedTitleV2Group> = emptyList())
 data class TitleDetailView(
     val title: Title,
     val titleImageUrl: String,
-    val overview: String,
+    val overview: String? = null,
     val backgroundImageUrl: String,
     val nextTimeStamp: Int = 0,
     val viewingPeriodDescription: String = "",
@@ -79,33 +78,57 @@ data class TitleDetailView(
         get() = firstChapterList.size + lastChapterList.size
 
     private val isReEdition: Boolean
-        get() = viewingPeriodDescription.contains(MangaPlus.REEDITION_REGEX)
+        get() = viewingPeriodDescription.contains(REEDITION_REGEX)
 
-    val isCompleted: Boolean
-        get() = nonAppearanceInfo.contains(MangaPlus.COMPLETED_REGEX) || isOneShot
+    private val isCompleted: Boolean
+        get() = nonAppearanceInfo.contains(COMPLETED_REGEX) || isOneShot
 
-    val genres: List<String>
-        get() = listOf(
-            if (isSimulReleased && !isReEdition) "Simulrelease" else "",
-            if (isOneShot) "One-shot" else "",
-            if (isReEdition) "Re-edition" else "",
-            if (isWebtoon) "Webtoon" else ""
+    private val genres: List<String>
+        get() = listOfNotNull(
+            "Simulrelease".takeIf { isSimulReleased && !isReEdition && !isOneShot },
+            "One-shot".takeIf { isOneShot },
+            "Re-edition".takeIf { isReEdition },
+            "Webtoon".takeIf { isWebtoon }
         )
+
+    fun toSManga(): SManga = title.toSManga().apply {
+        description = (overview.orEmpty() + "\n\n" + viewingPeriodDescription).trim()
+        status = if (isCompleted) SManga.COMPLETED else SManga.ONGOING
+        genre = genres.joinToString()
+    }
+
+    companion object {
+        private val COMPLETED_REGEX = "completado|complete|completo".toRegex()
+        private val REEDITION_REGEX = "revival|remasterizada".toRegex()
+    }
 }
 
 @Serializable
-data class MangaViewer(val pages: List<MangaPlusPage> = emptyList())
+data class MangaViewer(
+    val pages: List<MangaPlusPage> = emptyList(),
+    val titleId: Int? = null,
+    val titleName: String? = null
+)
 
 @Serializable
 data class Title(
     val titleId: Int,
     val name: String,
-    val author: String,
+    val author: String? = null,
     val portraitImageUrl: String,
     val landscapeImageUrl: String,
     val viewCount: Int = 0,
     val language: Language? = Language.ENGLISH
-)
+) {
+
+    fun toSManga(): SManga = SManga.create().apply {
+        title = name
+        author = this@Title.author?.replace(" / ", ", ")
+        artist = author
+        thumbnail_url = portraitImageUrl
+        url = "#/titles/$titleId"
+    }
+}
 
 enum class Language {
     ENGLISH,
@@ -141,7 +164,15 @@ data class Chapter(
     val startTimeStamp: Int,
     val endTimeStamp: Int,
     val isVerticalOnly: Boolean = false
-)
+) {
+
+    fun toSChapter(): SChapter = SChapter.create().apply {
+        name = "${this@Chapter.name} - $subTitle"
+        date_upload = 1000L * startTimeStamp
+        url = "#/viewer/$chapterId"
+        chapter_number = this@Chapter.name.substringAfter("#").toFloatOrNull() ?: -1f
+    }
+}
 
 @Serializable
 data class MangaPlusPage(val mangaPage: MangaPage? = null)

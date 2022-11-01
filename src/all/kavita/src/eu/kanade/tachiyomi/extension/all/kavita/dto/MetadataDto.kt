@@ -48,6 +48,7 @@ data class MetadataCollections(
 )
 
 data class MetadataPayload(
+    val forceUseMetadataPayload: Boolean = true,
     var sorting: Int = 1,
     var sorting_asc: Boolean = true,
     var readStatus: ArrayList<String> = arrayListOf< String>(),
@@ -62,6 +63,9 @@ data class MetadataPayload(
     var language: ArrayList<String> = arrayListOf<String>(),
     var libraries: ArrayList<Int> = arrayListOf<Int>(),
     var pubStatus: ArrayList<Int> = arrayListOf<Int>(),
+    var seriesNameQuery: String = "",
+    var releaseYearRangeMin: Int = 0,
+    var releaseYearRangeMax: Int = 0,
 
     var peopleWriters: ArrayList<Int> = arrayListOf<Int>(),
     var peoplePenciller: ArrayList<Int> = arrayListOf<Int>(),
@@ -73,5 +77,4 @@ data class MetadataPayload(
     var peoplePublisher: ArrayList<Int> = arrayListOf<Int>(),
     var peopleCharacter: ArrayList<Int> = arrayListOf<Int>(),
     var peopleTranslator: ArrayList<Int> = arrayListOf<Int>(),
-
 )

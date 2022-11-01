@@ -20,6 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Headers
 import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.nodes.Document
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
 import java.text.SimpleDateFormat
@@ -74,15 +75,17 @@ abstract class NepNep(
     }
 
     // don't use ";" for substringBefore() !
-    private fun directoryFromResponse(response: Response): JsonArray {
-        val str = response.asJsoup().select("script:containsData(MainFunction)").first().data()
+    private fun directoryFromDocument(document: Document): JsonArray {
+        val str = document.select("script:containsData(MainFunction)").first().data()
             .substringAfter("vm.Directory = ").substringBefore("vm.GetIntValue").trim()
             .replace(";", " ")
         return json.parseToJsonElement(str).jsonArray
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        directory = directoryFromResponse(response).sortedByDescending { it.getString("v") }
+        val document = response.asJsoup()
+        thumbnailUrl = document.select(".SearchResult > .SearchResultCover img").first().attr("ng-src")
+        directory = directoryFromDocument(document).sortedByDescending { it.getString("v") }
         return parseDirectory(1)
     }
 
@@ -95,11 +98,22 @@ abstract class NepNep(
                 SManga.create().apply {
                     title = directory[i].getString("s")!!
                     url = "/manga/${directory[i].getString("i")}"
-                    thumbnail_url = "https://cover.nep.li/cover/${directory[i].getString("i")}.jpg"
+                    thumbnail_url = getThumbnailUrl(directory[i].getString("i")!!)
                 }
             )
         }
         return MangasPage(mangas, endRange < directory.lastIndex)
+    }
+
+    private var thumbnailUrl: String? = null
+
+    private fun getThumbnailUrl(id: String): String {
+        if (thumbnailUrl.isNullOrEmpty()) {
+            val response = client.newCall(popularMangaRequest(1)).execute()
+            thumbnailUrl = response.asJsoup().select(".SearchResult > .SearchResultCover img").first().attr("ng-src")
+        }
+
+        return thumbnailUrl!!.replace("{{Result.i}}", id)
     }
 
     // Latest
@@ -119,7 +133,7 @@ abstract class NepNep(
     override fun latestUpdatesRequest(page: Int): Request = popularMangaRequest(1)
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        directory = directoryFromResponse(response).sortedByDescending { it.getString("lt") }
+        directory = directoryFromDocument(response.asJsoup()).sortedByDescending { it.getString("lt") }
         return parseDirectory(1)
     }
 
@@ -141,7 +155,7 @@ abstract class NepNep(
 
     private fun searchMangaParse(response: Response, query: String, filters: FilterList): MangasPage {
         val trimmedQuery = query.trim()
-        directory = directoryFromResponse(response)
+        directory = directoryFromDocument(response.asJsoup())
             .filter {
                 // Comparing query with display name
                 it.getString("s")!!.contains(trimmedQuery, ignoreCase = true) or
@@ -187,6 +201,7 @@ abstract class NepNep(
                         Filter.TriState.STATE_EXCLUDE -> genresNo.add(genre.name)
                     }
                 }
+                else -> continue
             }
         }
         if (genres.isNotEmpty()) genres.map { genre ->
@@ -246,6 +261,8 @@ abstract class NepNep(
     private fun String.toStatus() = when {
         this.contains("Ongoing", ignoreCase = true) -> SManga.ONGOING
         this.contains("Complete", ignoreCase = true) -> SManga.COMPLETED
+        this.contains("Cancelled", ignoreCase = true) -> SManga.CANCELLED
+        this.contains("Hiatus", ignoreCase = true) -> SManga.ON_HIATUS
         else -> SManga.UNKNOWN
     }
 

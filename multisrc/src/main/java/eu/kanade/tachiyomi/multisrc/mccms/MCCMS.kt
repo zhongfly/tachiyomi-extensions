@@ -1,86 +1,150 @@
 package eu.kanade.tachiyomi.multisrc.mccms
 
+import android.util.Log
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.asObservableSuccess
+import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
+import rx.Observable
+import rx.Single
+import uy.kohesive.injekt.injectLazy
+import kotlin.concurrent.thread
 
 /**
  * 漫城CMS http://mccms.cn/
  */
-abstract class MCCMS(
+open class MCCMS(
     override val name: String,
     override val baseUrl: String,
     override val lang: String = "zh",
-) : ParsedHttpSource() {
-    override val supportsLatest: Boolean = true
+    hasCategoryPage: Boolean = true
+) : HttpSource() {
+    override val supportsLatest = true
 
-    protected open val nextPageSelector = "div#Pagination a.next"
-    protected open val comicItemSelector = "div.common-comic-item"
-    protected open val comicItemTitleSelector = "p.comic__title > a"
+    private val json: Json by injectLazy()
 
-    protected open fun transformTitle(title: String) = title
-
-    // Popular
-
-    override fun popularMangaRequest(page: Int) = GET("$baseUrl/category/order/hits/page/$page", headers)
-    override fun popularMangaNextPageSelector() = nextPageSelector
-    override fun popularMangaSelector() = comicItemSelector
-    override fun popularMangaFromElement(element: Element) = SManga.create().apply {
-        val titleElement = element.select(comicItemTitleSelector)
-        title = transformTitle(titleElement.text().trim())
-        setUrlWithoutDomain(titleElement.attr("abs:href"))
-        thumbnail_url = element.select("img").attr("abs:data-original")
+    override val client by lazy {
+        network.client.newBuilder()
+            .rateLimitHost(baseUrl.toHttpUrl(), 2)
+            .build()
     }
 
-    // Latest
+    private val pcHeaders by lazy { super.headersBuilder().build() }
 
-    override fun latestUpdatesRequest(page: Int) = GET("$baseUrl/category/order/addtime/page/$page", headers)
-    override fun latestUpdatesNextPageSelector() = nextPageSelector
-    override fun latestUpdatesSelector() = comicItemSelector
-    override fun latestUpdatesFromElement(element: Element) = popularMangaFromElement(element)
+    override fun headersBuilder() = Headers.Builder()
+        .add("User-Agent", System.getProperty("http.agent")!!)
+        .add("Referer", baseUrl)
 
-    // Search
+    protected open fun SManga.cleanup(): SManga = this
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) =
-        GET("$baseUrl/search/$query/$page", headers)
+    override fun popularMangaRequest(page: Int): Request =
+        GET("$baseUrl/api/data/comic?page=$page&size=$PAGE_SIZE&order=hits", headers)
 
-    override fun searchMangaNextPageSelector(): String? = nextPageSelector
-    override fun searchMangaSelector() = comicItemSelector
-    override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
-
-    // Details
-
-    override fun mangaDetailsParse(document: Document) = SManga.create().apply {
-        title = transformTitle(document.select("div.de-info__box > p.comic-title").text().trim())
-        thumbnail_url = document.select("div.de-info__cover > img").attr("abs:src")
-        author = document.select("div.comic-author > span.name > a").text()
-        artist = author
-        genre = document.select("div.comic-status > span.text:nth-child(1) a").eachText().joinToString(", ")
-        description = document.select("div.comic-intro > p.intro-total").text()
+    override fun popularMangaParse(response: Response): MangasPage {
+        val list: List<MangaDto> = response.parseAs()
+        return MangasPage(list.map { it.toSManga().cleanup() }, list.size >= PAGE_SIZE)
     }
 
-    // Chapters
+    override fun latestUpdatesRequest(page: Int): Request =
+        GET("$baseUrl/api/data/comic?page=$page&size=$PAGE_SIZE&order=addtime", headers)
 
-    override fun chapterListSelector() = "ul.chapter__list-box > li"
-    override fun chapterFromElement(element: Element) = SChapter.create().apply {
-        setUrlWithoutDomain(element.select("a").attr("abs:href"))
-        name = element.select("a").text()
+    override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
+
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val queries = buildList {
+            add("page=$page")
+            add("size=$PAGE_SIZE")
+            val isTextSearch = query.isNotBlank()
+            if (isTextSearch) add("key=$query")
+            for (filter in filters) if (filter is MCCMSFilter) {
+                if (isTextSearch && filter.isTypeQuery) continue
+                val part = filter.query
+                if (part.isNotEmpty()) add(part)
+            }
+        }
+        val url = buildString {
+            append(baseUrl).append("/api/data/comic?")
+            queries.joinTo(this, separator = "&")
+        }
+        return GET(url, headers)
     }
 
-    override fun chapterListParse(response: Response) = super.chapterListParse(response).reversed()
+    override fun searchMangaParse(response: Response) = popularMangaParse(response)
 
-    // Pages
+    // preserve mangaDetailsRequest for WebView
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
+        client.newCall(GET("$baseUrl/api/data/comic?key=${manga.title}", headers))
+            .asObservableSuccess().map { response ->
+                val list: List<MangaDto> = response.parseAs()
+                list.find { it.url == manga.url }!!.toSManga().cleanup()
+            }
+
+    override fun mangaDetailsParse(response: Response) = throw UnsupportedOperationException("Not used.")
+
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> { subscriber ->
+        val id = getMangaId(manga.url)
+        val dataResponse = client.newCall(GET("$baseUrl/api/data/chapter?mid=$id", headers)).execute()
+        val dataList: List<ChapterDataDto> = dataResponse.parseAs() // unordered
+        val dateMap = HashMap<Int, Long>(dataList.size * 2)
+        dataList.forEach { dateMap[it.id.toInt()] = it.date }
+        val response = client.newCall(GET("$baseUrl/api/comic/chapter?mid=$id", headers)).execute()
+        val list: List<ChapterDto> = response.parseAs()
+        val result = list.map { it.toSChapter(date = dateMap[it.id.toInt()] ?: 0) }.asReversed()
+        subscriber.onSuccess(result)
+    }.toObservable()
+
+    protected open fun getMangaId(url: String) = url.substringAfterLast('/')
+
+    override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
+
+    override fun pageListRequest(chapter: SChapter): Request =
+        GET(baseUrl + chapter.url, pcHeaders)
 
     protected open val lazyLoadImageAttr = "data-original"
 
-    override fun pageListParse(document: Document) = document.select("div.rd-article__pic > img")
-        .mapIndexed { i, el -> Page(i, "", el.attr("abs:$lazyLoadImageAttr")) }
+    override fun pageListParse(response: Response): List<Page> {
+        val document = response.asJsoup()
+        return document.select("img[$lazyLoadImageAttr]").mapIndexed { i, element ->
+            Page(i, imageUrl = element.attr(lazyLoadImageAttr))
+        }
+    }
 
-    override fun imageUrlParse(document: Document) = throw UnsupportedOperationException("Not used.")
+    override fun imageUrlParse(response: Response) = throw UnsupportedOperationException("Not used.")
+
+    private inline fun <reified T> Response.parseAs(): T = use {
+        json.decodeFromStream<ResultDto<T>>(it.body!!.byteStream()).data
+    }
+
+    private val genreData = GenreData(hasCategoryPage)
+
+    private fun fetchGenres() {
+        if (genreData.status != GenreData.NOT_FETCHED) return
+        genreData.status = GenreData.FETCHING
+        thread {
+            try {
+                val response = client.newCall(GET("$baseUrl/category/", pcHeaders)).execute()
+                parseGenres(response.asJsoup(), genreData)
+            } catch (e: Exception) {
+                genreData.status = GenreData.NOT_FETCHED
+                Log.e("MCCMS/$name", "failed to fetch genres", e)
+            }
+        }
+    }
+
+    override fun getFilterList(): FilterList {
+        fetchGenres()
+        return getFilters(genreData)
+    }
 }

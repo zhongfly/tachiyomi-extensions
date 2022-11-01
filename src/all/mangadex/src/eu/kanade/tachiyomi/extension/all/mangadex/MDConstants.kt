@@ -40,7 +40,7 @@ object MDConstants {
     const val prefixUsrSearch = "usr:"
     const val prefixListSearch = "list:"
 
-    const val coverQualityPref = "thumbnailQuality"
+    private const val coverQualityPref = "thumbnailQuality"
 
     fun getCoverQualityPreferenceKey(dexLang: String): String {
         return "${coverQualityPref}_$dexLang"
@@ -53,7 +53,7 @@ object MDConstants {
 
     fun getCoverQualityPreferenceDefaultValue() = getCoverQualityPreferenceEntryValues()[0]
 
-    const val dataSaverPref = "dataSaverV5"
+    private const val dataSaverPref = "dataSaverV5"
 
     fun getDataSaverPreferenceKey(dexLang: String): String {
         return "${dataSaverPref}_$dexLang"
@@ -87,12 +87,20 @@ object MDConstants {
         return "${originalLanguagePref}_$dexLang"
     }
 
-    private const val groupMangaPlus = "4f1de6a2-f0c5-4ac5-bce5-02c7dbb67deb"
-    private const val groupComikey = "8d8ecf83-8d42-4f8c-add8-60963f9f28d9"
-    private const val groupBilibili = "06a9fecb-b608-4f19-b93c-7caab06b7f44"
     private const val groupAzuki = "5fed0576-8b94-4f9a-b6a7-08eecd69800d"
+    private const val groupBilibili = "06a9fecb-b608-4f19-b93c-7caab06b7f44"
+    private const val groupComikey = "8d8ecf83-8d42-4f8c-add8-60963f9f28d9"
+    private const val groupInkr = "caa63201-4a17-4b7f-95ff-ed884a2b7e60"
     private const val groupMangaHot = "319c1b10-cbd0-4f55-a46e-c4ee17e65139"
-    val defaultBlockedGroups = setOf(groupMangaPlus, groupComikey, groupBilibili, groupAzuki, groupMangaHot)
+    private const val groupMangaPlus = "4f1de6a2-f0c5-4ac5-bce5-02c7dbb67deb"
+    val defaultBlockedGroups = setOf(
+        groupAzuki,
+        groupBilibili,
+        groupComikey,
+        groupInkr,
+        groupMangaHot,
+        groupMangaPlus
+    )
     private const val blockedGroupsPref = "blockedGroups"
     fun getBlockedGroupsPrefKey(dexLang: String): String {
         return "${blockedGroupsPref}_$dexLang"
@@ -103,9 +111,23 @@ object MDConstants {
         return "${blockedUploaderPref}_$dexLang"
     }
 
-    const val tagGroupContent = "content"
-    const val tagGroupFormat = "format"
-    const val tagGroupGenre = "genre"
-    const val tagGroupTheme = "theme"
+    private const val hasSanitizedUuidsPref = "hasSanitizedUuids"
+    fun getHasSanitizedUuidsPrefKey(dexLang: String): String {
+        return "${hasSanitizedUuidsPref}_$dexLang"
+    }
+
+    private const val tryUsingFirstVolumeCoverPref = "tryUsingFirstVolumeCover"
+    const val tryUsingFirstVolumeCoverDefault = false
+    fun getTryUsingFirstVolumeCoverPrefKey(dexLang: String): String {
+        return "${tryUsingFirstVolumeCoverPref}_$dexLang"
+    }
+
+    private const val tagGroupContent = "content"
+    private const val tagGroupFormat = "format"
+    private const val tagGroupGenre = "genre"
+    private const val tagGroupTheme = "theme"
     val tagGroupsOrder = arrayOf(tagGroupContent, tagGroupFormat, tagGroupGenre, tagGroupTheme)
+
+    const val tagAnthologyUuid = "51d83883-4103-437c-b4b1-731cb73d786c"
+    const val tagOneShotUuid = "0234a31e-a729-4e28-9d6a-3f87c4966b9e"
 }

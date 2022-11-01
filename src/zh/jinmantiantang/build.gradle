@@ -1,12 +1,11 @@
-
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 ext {
-    extName = 'Jinmantiantang'
+    extName = 'Jinman Tiantang'
     pkgNameSuffix = 'zh.jinmantiantang'
     extClass = '.Jinmantiantang'
-    extVersionCode = 27
+    extVersionCode = 31
     isNsfw = true
 }
 

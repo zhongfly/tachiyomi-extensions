@@ -9,10 +9,10 @@ class NepNepGenerator : ThemeSourceGenerator {
 
     override val themeClass = "NepNep"
 
-    override val baseVersionCode: Int = 8
+    override val baseVersionCode: Int = 11
 
     override val sources = listOf(
-        SingleLang("MangaSee", "https://mangasee123.com", "en", overrideVersionCode = 20),
+        SingleLang("MangaSee", "https://mangasee123.com", "en", overrideVersionCode = 23),
         SingleLang("MangaLife", "https://manga4life.com", "en", overrideVersionCode = 16),
     )
 

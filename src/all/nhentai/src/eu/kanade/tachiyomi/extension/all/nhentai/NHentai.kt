@@ -20,6 +20,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -46,6 +47,10 @@ open class NHentai(
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
         .rateLimit(4)
         .build()
+
+    override fun headersBuilder(): Headers.Builder =
+        super.headersBuilder()
+            .set("User-Agent", USER_AGENT)
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
@@ -84,7 +89,7 @@ open class NHentai(
 
     override fun latestUpdatesRequest(page: Int) = GET(if (nhLang.isBlank()) "$baseUrl/?page=$page" else "$baseUrl/language/$nhLang/?page=$page", headers)
 
-    override fun latestUpdatesSelector() = "#content .index-container:not(.index-popular) .gallery"
+    override fun latestUpdatesSelector() = "#content .container:not(.index-popular) .gallery"
 
     override fun latestUpdatesFromElement(element: Element) = SManga.create().apply {
         setUrlWithoutDomain(element.select("a").attr("href"))
@@ -130,17 +135,19 @@ open class NHentai(
         val advQuery = combineQuery(filterList)
         val favoriteFilter = filterList.findInstance<FavoriteFilter>()
         val isOkayToSort = filterList.findInstance<UploadedFilter>()?.state?.isBlank() ?: true
+        val offsetPage =
+            filterList.findInstance<OffsetPageFilter>()?.state?.toIntOrNull()?.plus(page) ?: page
 
         if (favoriteFilter?.state == true) {
             val url = "$baseUrl/favorites".toHttpUrlOrNull()!!.newBuilder()
                 .addQueryParameter("q", "$fixedQuery $advQuery")
-                .addQueryParameter("page", page.toString())
+                .addQueryParameter("page", offsetPage.toString())
 
             return GET(url.toString(), headers)
         } else {
             val url = "$baseUrl/search".toHttpUrlOrNull()!!.newBuilder()
                 .addQueryParameter("q", "$fixedQuery $nhLangSearch$advQuery")
-                .addQueryParameter("page", page.toString())
+                .addQueryParameter("page", offsetPage.toString())
 
             if (isOkayToSort) {
                 filterList.findInstance<SortFilter>()?.let { f ->
@@ -262,6 +269,7 @@ open class NHentai(
 
         Filter.Separator(),
         SortFilter(),
+        OffsetPageFilter(),
         Filter.Header("Sort is ignored if favorites only"),
         FavoriteFilter()
     )
@@ -275,6 +283,8 @@ open class NHentai(
     class UploadedFilter : AdvSearchEntryFilter("Uploaded")
     class PagesFilter : AdvSearchEntryFilter("Pages")
     open class AdvSearchEntryFilter(name: String) : Filter.Text(name)
+
+    class OffsetPageFilter : Filter.Text("Offset results by # pages")
 
     override fun imageUrlParse(document: Document) = throw UnsupportedOperationException("Not used")
 
@@ -300,5 +310,6 @@ open class NHentai(
     companion object {
         const val PREFIX_ID_SEARCH = "id:"
         private const val TITLE_PREF = "Display manga title as:"
+        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Mobile Safari/537.36"
     }
 }

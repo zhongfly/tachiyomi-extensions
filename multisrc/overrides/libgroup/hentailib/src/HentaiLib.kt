@@ -1,22 +1,12 @@
 package eu.kanade.tachiyomi.extension.ru.hentailib
 
-import android.app.Application
-import android.content.SharedPreferences
-import android.widget.Toast
-import androidx.preference.ListPreference
-import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.multisrc.libgroup.LibGroup
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import java.io.IOException
 
 class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
 
@@ -24,15 +14,6 @@ class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
 
     override val client: OkHttpClient = super.client.newBuilder()
         .addInterceptor(::imageContentTypeIntercept)
-        .addInterceptor { chain ->
-            val originalRequest = chain.request()
-            if (originalRequest.url.toString().contains(baseUrl))
-                if (!network.cloudflareClient.newCall(GET(baseUrl, headers))
-                    .execute().body!!.string().contains("m-menu__user-info")
-                )
-                    throw IOException("Для просмотра 18+ контента необходима авторизация через WebView")
-            return@addInterceptor chain.proceed(originalRequest)
-        }
         .build()
 
     private var csrfToken: String = ""
@@ -66,7 +47,6 @@ class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
         }
         return POST(url.toString(), catalogHeaders())
     }
-
 
     // Filters
     private class SearchFilter(name: String, val id: String) : Filter.TriState(name)

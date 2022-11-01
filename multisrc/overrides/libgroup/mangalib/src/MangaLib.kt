@@ -5,24 +5,28 @@ import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.multisrc.libgroup.LibGroup
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru")  {
+class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru") {
 
     override val id: Long = 6111047689498497237
 
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_${id}_2", 0x0000)
     }
+
+    private val baseOrig: String = "https://mangalib.me"
+    private val baseMirr: String = "https://mangalib.org"
+    private var domain: String? = preferences.getString(DOMAIN_PREF, baseOrig)
+    override val baseUrl: String = domain.toString()
 
     override val client: OkHttpClient = super.client.newBuilder()
         .addInterceptor(::imageContentTypeIntercept)
@@ -38,11 +42,6 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru")  {
         }
         .build()
 
-    private val baseOrig: String = "https://mangalib.me"
-    private val baseMirr: String = "https://mangalib.org"
-    private var domain: String? = preferences.getString(DOMAIN_PREF, baseOrig)
-    override val baseUrl: String = domain.toString()
-
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (csrfToken.isEmpty()) {
             val tokenResponse = client.newCall(popularMangaRequest(page)).execute()
@@ -53,8 +52,11 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru")  {
         (if (filters.isEmpty()) getFilterList() else filters).forEach { filter ->
             when (filter) {
                 is AgeList -> filter.state.forEach { age ->
-                    if (age.state) {
-                        url.addQueryParameter("caution[]", age.id)
+                    if (age.state != Filter.TriState.STATE_IGNORE) {
+                        url.addQueryParameter(
+                            if (age.isIncluded()) "caution[include][]" else "caution[exclude][]",
+                            age.id
+                        )
                     }
                 }
                 is TagList -> filter.state.forEach { tag ->
@@ -72,10 +74,9 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru")  {
 
     // Filters
     private class SearchFilter(name: String, val id: String) : Filter.TriState(name)
-    private class CheckFilter(name: String, val id: String) : Filter.CheckBox(name)
 
     private class TagList(tags: List<SearchFilter>) : Filter.Group<SearchFilter>("Теги", tags)
-    private class AgeList(ages: List<CheckFilter>) : Filter.Group<CheckFilter>("Возрастное ограничение", ages)
+    private class AgeList(ages: List<SearchFilter>) : Filter.Group<SearchFilter>("Возрастное ограничение", ages)
 
     override fun getFilterList(): FilterList {
         val filters = super.getFilterList().toMutableList()
@@ -186,9 +187,9 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru")  {
     )
 
     private fun getAgeList() = listOf(
-        CheckFilter("Отсутствует", "0"),
-        CheckFilter("16+", "1"),
-        CheckFilter("18+", "2")
+        SearchFilter("Отсутствует", "0"),
+        SearchFilter("16+", "1"),
+        SearchFilter("18+", "2")
     )
 
     companion object {

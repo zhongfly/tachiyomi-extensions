@@ -9,10 +9,11 @@ class MangaSarGenerator : ThemeSourceGenerator {
 
     override val themeClass = "MangaSar"
 
-    override val baseVersionCode: Int = 6
+    override val baseVersionCode: Int = 7
 
     override val sources = listOf(
-        SingleLang("MangaTube", "https://mangatube.site", "pt-BR"),
+        SingleLang("Fire Mangás", "https://firemangas.com", "pt-BR", className = "FireMangas"),
+        SingleLang("Mangazim", "https://mangazim.com", "pt-BR"),
         SingleLang("Meus Mangás", "https://meusmangas.net", "pt-BR", isNsfw = true, className = "MeusMangas", overrideVersionCode = 2)
     )
 

@@ -4,17 +4,15 @@ import generator.ThemeSourceData.SingleLang
 import generator.ThemeSourceGenerator
 
 class MangaRawGenerator : ThemeSourceGenerator {
-    override val themeClass = "MangaRaw"
+    override val themeClass = "MangaRawTheme"
 
     override val themePkg = "mangaraw"
 
-    override val baseVersionCode: Int = 1
+    override val baseVersionCode = 4
 
     override val sources = listOf(
-        SingleLang("Comick", "https://comick.top", "ja", isNsfw = false, overrideVersionCode = 1),
-        SingleLang("Manga1001", "https://manga1001.top", "ja", isNsfw = false, overrideVersionCode = 1),
-        SingleLang("MangaPro", "https://mangapro.top", "ja", isNsfw = false, overrideVersionCode = 1),
-        SingleLang("SyoSetu", "https://syosetu.top", "ja", isNsfw = false, overrideVersionCode = 1),
+        SingleLang("SyoSetu", "https://syosetu.top", "ja"),
+        SingleLang("MangaRaw", "https://manga9.co", "ja", pkgName = "manga9co"),
     )
 
     companion object {

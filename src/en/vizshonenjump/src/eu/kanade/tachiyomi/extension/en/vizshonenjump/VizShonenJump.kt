@@ -9,15 +9,11 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.CacheControl
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -27,7 +23,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import java.text.ParseException
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -65,14 +61,19 @@ class VizShonenJump : ParsedHttpSource() {
             .set("Referer", baseUrl)
             .build()
 
-        return GET("$baseUrl/shonenjump", newHeaders, CacheControl.FORCE_NETWORK)
+        return GET(
+            url = "$baseUrl/read/shonenjump/section/free-chapters",
+            headers = newHeaders,
+            cache = CacheControl.FORCE_NETWORK
+        )
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val mangasPage = super.popularMangaParse(response)
-
-        if (mangasPage.mangas.isEmpty())
+        if (!response.request.url.toString().contains("section/free-chapters")) {
             throw Exception(COUNTRY_NOT_SUPPORTED)
+        }
+
+        val mangasPage = super.popularMangaParse(response)
 
         mangaList = mangasPage.mangas.sortedBy { it.title }
 
@@ -83,8 +84,8 @@ class VizShonenJump : ParsedHttpSource() {
         "section.section_chapters div.o_sort_container div.o_sortable > a.o_chapters-link"
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        title = element.select("div.pad-x-rg").first().text()
-        thumbnail_url = element.select("div.pos-r img.disp-bl").first()
+        title = element.selectFirst("div.pad-x-rg").text()
+        thumbnail_url = element.selectFirst("div.pos-r img.disp-bl")
             ?.attr("data-original")
         url = element.attr("href")
     }
@@ -94,10 +95,11 @@ class VizShonenJump : ParsedHttpSource() {
     override fun latestUpdatesRequest(page: Int): Request = popularMangaRequest(page)
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val mangasPage = super.latestUpdatesParse(response)
-
-        if (mangasPage.mangas.isEmpty())
+        if (!response.request.url.toString().contains("section/free-chapters")) {
             throw Exception(COUNTRY_NOT_SUPPORTED)
+        }
+
+        val mangasPage = super.latestUpdatesParse(response)
 
         mangaList = mangasPage.mangas.sortedBy { it.title }
 
@@ -123,12 +125,11 @@ class VizShonenJump : ParsedHttpSource() {
         popularMangaRequest(page)
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val mangasPage = super.searchMangaParse(response)
-
-        if (mangasPage.mangas.isEmpty())
+        if (!response.request.url.toString().contains("section/free-chapters")) {
             throw Exception(COUNTRY_NOT_SUPPORTED)
+        }
 
-        return mangasPage
+        return super.searchMangaParse(response)
     }
 
     override fun searchMangaSelector() = popularMangaSelector()
@@ -222,17 +223,16 @@ class VizShonenJump : ParsedHttpSource() {
             .substringAfterLast("/")
             .substringBefore("?")
 
-        return IntRange(0, pageCount)
-            .map {
-                val imageUrl = "$baseUrl/manga/get_manga_url".toHttpUrlOrNull()!!.newBuilder()
-                    .addQueryParameter("device_id", "3")
-                    .addQueryParameter("manga_id", mangaId)
-                    .addQueryParameter("page", it.toString())
-                    .addEncodedQueryParameter("referer", document.location())
-                    .toString()
+        return IntRange(0, pageCount).map {
+            val imageUrl = "$baseUrl/manga/get_manga_url".toHttpUrl().newBuilder()
+                .addQueryParameter("device_id", "3")
+                .addQueryParameter("manga_id", mangaId)
+                .addQueryParameter("pages", it.toString())
+                .addEncodedQueryParameter("referer", document.location())
+                .toString()
 
-                Page(it, imageUrl)
-            }
+            Page(it, imageUrl)
+        }
     }
 
     override fun imageUrlRequest(page: Page): Request {
@@ -243,6 +243,7 @@ class VizShonenJump : ParsedHttpSource() {
             .toString()
 
         val newHeaders = headersBuilder()
+            .add("Accept", ACCEPT_JSON)
             .add("X-Client-Login", (loggedIn ?: false).toString())
             .add("X-Requested-With", "XMLHttpRequest")
             .set("Referer", referer)
@@ -252,10 +253,11 @@ class VizShonenJump : ParsedHttpSource() {
     }
 
     override fun imageUrlParse(response: Response): String {
-        val cdnUrl = response.body!!.string()
         val referer = response.request.header("Referer")!!
+        val pageUrl = response.parseAs<VizPageUrlDto>()
+            .data?.values?.firstOrNull() ?: throw Exception(FAILED_TO_FETCH_PAGE_URL)
 
-        return cdnUrl.toHttpUrlOrNull()!!.newBuilder()
+        return pageUrl.toHttpUrl().newBuilder()
             .addEncodedQueryParameter("referer", referer)
             .toString()
     }
@@ -270,6 +272,7 @@ class VizShonenJump : ParsedHttpSource() {
             .toString()
 
         val newHeaders = headersBuilder()
+            .add("Accept", "*/*")
             .set("Referer", referer)
             .build()
 
@@ -320,15 +323,9 @@ class VizShonenJump : ParsedHttpSource() {
             .addQueryParameter("manga_id", mangaId)
             .toString()
         val authCheckRequest = GET(authCheckUrl, authCheckHeaders)
-        val authCheckResponse = chain.proceed(authCheckRequest)
-        val authCheckJson = Json.parseToJsonElement(authCheckResponse.body!!.string()).jsonObject
+        val authCheckResponse = chain.proceed(authCheckRequest).parseAs<VizMangaAuthDto>()
 
-        authCheckResponse.close()
-
-        if (
-            authCheckJson["ok"]!!.jsonPrimitive.int == 1 &&
-            authCheckJson["archive_info"]!!.jsonObject["ok"]!!.jsonPrimitive.int == 1
-        ) {
+        if (authCheckResponse.ok == 1 && authCheckResponse.archiveInfo?.ok == 1) {
             val newChapterUrl = chain.request().url.newBuilder()
                 .removeAllQueryParameters("locked")
                 .build()
@@ -339,32 +336,26 @@ class VizShonenJump : ParsedHttpSource() {
             return chain.proceed(newChapterRequest)
         }
 
-        if (
-            authCheckJson["archive_info"]!!.jsonObject["err"] is JsonObject &&
-            authCheckJson["archive_info"]!!.jsonObject["err"]!!.jsonObject["code"]?.jsonPrimitive?.intOrNull == 4 &&
-            loggedIn == true
-        ) {
-            throw Exception(SESSION_EXPIRED)
+        if (authCheckResponse.archiveInfo?.error?.code == 4) {
+            throw IOException(SESSION_EXPIRED)
         }
 
-        val errorMessage = authCheckJson["archive_info"]!!.jsonObject["err"]?.jsonObject
-            ?.get("msg")?.jsonPrimitive?.contentOrNull ?: AUTH_CHECK_FAILED
+        throw IOException(authCheckResponse.archiveInfo?.error?.message ?: AUTH_CHECK_FAILED)
+    }
 
-        throw Exception(errorMessage)
+    private inline fun <reified T> Response.parseAs(): T = use {
+        json.decodeFromString(it.body?.string().orEmpty())
     }
 
     private fun String.toDate(): Long {
-        return try {
-            DATE_FORMATTER.parse(this)!!.time
-        } catch (e: ParseException) {
-            0L
-        }
+        return runCatching { DATE_FORMATTER.parse(this)?.time }
+            .getOrNull() ?: 0L
     }
 
     companion object {
         private const val ACCEPT_JSON = "application/json, text/javascript, */*; q=0.01"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"
 
         private val DATE_FORMATTER by lazy {
             SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH)
@@ -373,6 +364,7 @@ class VizShonenJump : ParsedHttpSource() {
         private const val COUNTRY_NOT_SUPPORTED = "Your country is not supported by the service."
         private const val SESSION_EXPIRED = "Your session has expired, please log in through WebView again."
         private const val AUTH_CHECK_FAILED = "Something went wrong in the auth check."
+        private const val FAILED_TO_FETCH_PAGE_URL = "Something went wrong while trying to fetch page."
 
         private const val REFRESH_LOGIN_LINKS_URL = "account/refresh_login_links"
         private const val MANGA_AUTH_CHECK_URL = "manga/auth"
