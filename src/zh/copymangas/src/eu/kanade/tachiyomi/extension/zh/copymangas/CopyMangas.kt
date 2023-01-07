@@ -112,11 +112,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private fun Headers.Builder.setWebp(useWebp: Boolean) = set("webp", if (useWebp) "1" else "0")
     private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
-    private fun Headers.Builder.setVersion(version: String) = set("version", version)
+    private fun Headers.Builder.setVersion(version: String) = set("version", version).set("Referer", "com.copymanga.app-"+version).set("User-Agent", "COPY/"+version)
     private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
 
     private var apiHeaders = Headers.Builder()
-        .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
+        //.setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
         .add("source","copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
@@ -580,7 +580,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 false
             }
         }.let { screen.addPreference(it) }
-
+/*
         EditTextPreference(screen.context).apply {
             key = USER_AGENT_PREF
             title = "User Agent"
@@ -592,7 +592,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 apiHeaders = apiHeaders.newBuilder().setUserAgent(userAgent).build()
                 true
             }
-        }.let { screen.addPreference(it) }
+        }.let { screen.addPreference(it) }*/
 
         EditTextPreference(screen.context).apply {
             key = VERSION_PREF
@@ -644,7 +644,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private val QUALITY = arrayOf("800", "1200", "1500")
         private val RATE_ARRAY = (5..120 step 5).map { i -> i.toString() }.toTypedArray()
         private const val DEFAULT_USER_AGENT = "Dart/2.16(dart:io)"
-        private const val DEFAULT_VERSION = "1.4.2"
+        private const val DEFAULT_VERSION = "2.0.0"
         private const val DEFAULT_BROWSER_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; ) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.53 Mobile Safari/537.36"
 
         private const val PAGE_SIZE = 20
