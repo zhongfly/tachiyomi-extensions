@@ -3,17 +3,16 @@ package eu.kanade.tachiyomi.extension.zh.copymangas
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
-import android.os.Handler
-import android.os.Looper
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import com.luhuiguo.chinese.ChineseUtils
-import eu.kanade.tachiyomi.extension.zh.copymangas.MangaDto.Companion.parseChapterGroups
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
@@ -25,17 +24,11 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
-import java.util.concurrent.TimeUnit
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -45,8 +38,12 @@ import rx.Single
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.thread
-import kotlin.random.Random
 
 class CopyMangas : HttpSource(), ConfigurableSource {
     override val name = "拷贝漫画"
@@ -85,20 +82,20 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
     private val groupInterceptor = RateLimitInterceptor(preferences.getString(GROUP_API_RATE_PREF, "30")!!.toInt(), 61, TimeUnit.SECONDS)
     private val chapterInterceptor = RateLimitInterceptor(preferences.getString(CHAPTER_API_RATE_PREF, "20")!!.toInt(), 61, TimeUnit.SECONDS)
-    
+
     override val client: OkHttpClient = network.client.newBuilder()
         .sslSocketFactory(sslContext.socketFactory, trustManager)
         .addNetworkInterceptor { chain ->
-          chain.proceed(
-              chain.request()
-                  .newBuilder()
-                  .removeHeader("cache-control")
-                  .removeHeader("if-modified-since")
-                  .removeHeader("cookie")
-                  .build()
-          )
+            chain.proceed(
+                chain.request()
+                    .newBuilder()
+                    .removeHeader("cache-control")
+                    .removeHeader("if-modified-since")
+                    .removeHeader("cookie")
+                    .build(),
+            )
         }
-        .addNetworkInterceptor{ chain ->
+        .addNetworkInterceptor { chain ->
             val url = chain.request().url.toString()
             when {
                 url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
@@ -109,30 +106,30 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         .build()
 
     private fun Headers.Builder.setUserAgent(userAgent: String) = set("User-Agent", userAgent)
-    private fun Headers.Builder.setWebp(useWebp: Boolean) = set("webp", if (useWebp) "1" else "0")
-    private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) "0" else "1")
+    private fun Headers.Builder.setWebp(useWebp: Boolean) = set("webp", if (useWebp) { "1" } else { "0" })
+    private fun Headers.Builder.setRegion(useOverseasCdn: Boolean) = set("region", if (useOverseasCdn) { "0" } else { "1" })
     private fun Headers.Builder.setReferer(referer: String) = set("Referer", referer)
-    private fun Headers.Builder.setVersion(version: String) = set("version", version).set("Referer", "com.copymanga.app-"+version).set("User-Agent", "COPY/"+version)
-    private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) "Token "+token else "Token")
+    private fun Headers.Builder.setVersion(version: String) = set("version", version).set("Referer", "com.copymanga.app-" + version).set("User-Agent", "COPY/" + version)
+    private fun Headers.Builder.setToken(token: String = "") = set("authorization", if (!token.isNullOrBlank()) { "Token " + token } else { "Token" })
 
     private var apiHeaders = Headers.Builder()
-        //.setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
-        .add("source","copyApp")
+        // .setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!)
+        .add("source", "copyApp")
         .setWebp(preferences.getBoolean(WEBP_PREF, true))
         .setVersion(preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
         .setRegion(preferences.getBoolean(OVERSEAS_CDN_PREF, false))
-        .setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "")
+        .setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" })
         .add("platform", "3")
         .build()
-    
+
     override fun headersBuilder() = Headers.Builder()
         .setUserAgent(preferences.getString(BROWSER_USER_AGENT_PREF, DEFAULT_BROWSER_USER_AGENT)!!)
         .setReferer(webDomain)
 
-    private fun fetchToken(username: String, password: String):Map<String, String> {
-        val results = mutableMapOf<String, String>("success" to "false", "message" to "","token" to "" )
+    private fun fetchToken(username: String, password: String): Map<String, String> {
+        val results = mutableMapOf<String, String>("success" to "false", "message" to "", "token" to "")
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
-            results["message"]="用户名或密码为空"
+            results["message"] = "用户名或密码为空"
             return results
         }
         try {
@@ -141,18 +138,18 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val formBody: RequestBody = FormBody.Builder()
                 .addEncoded("username", username)
                 .addEncoded("password", passwordEncoded)
-                .addEncoded("salt",salt)
-                .addEncoded("platform","3")
-                .addEncoded("authorization","Token+")
-                .addEncoded("version",preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
-                .addEncoded("source","copyApp")
-                .build()                  
+                .addEncoded("salt", salt)
+                .addEncoded("platform", "3")
+                .addEncoded("authorization", "Token+")
+                .addEncoded("version", preferences.getString(VERSION_PREF, DEFAULT_VERSION)!!)
+                .addEncoded("source", "copyApp")
+                .build()
             val headers = apiHeaders.newBuilder().setToken().build()
-            val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers,formBody)).execute()
+            val response = client.newCall(POST("$apiUrl/api/v3/login?platform=3", headers, formBody)).execute()
             if (response.code != 200) {
-                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body!!.byteStream()).message
+                results["message"] = json.decodeFromStream<ResultMessageDto>(response.body.byteStream()).message
             } else {
-                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body!!.byteStream()).results.token!!
+                results["token"] = json.decodeFromStream<ResultDto<TokenDto>>(response.body.byteStream()).results.token!!
                 results["success"] = "true"
             }
         } catch (e: Exception) {
@@ -167,7 +164,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         try {
             val headers = apiHeaders.newBuilder()
                 .setToken(token)
-                .build()  
+                .build()
             val response = client.newCall(GET("$apiUrl/api/v3/member/info?platform=3", headers)).execute()
             result = (response.code == 200)
         } catch (e: Exception) {
@@ -183,9 +180,9 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             val password = preferences.getString(PASSWORD_PREF, "")!!
             if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                 val results = fetchToken(username, password)
-                if ( results["success"] != "false"){
+                if (results["success"] != "false") {
                     preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
+                    apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) { results["token"]!! } else { "" }).build()
                 }
             }
         }
@@ -219,14 +216,14 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             builder.addPathSegments("api/v3/search/comic")
                 .addQueryParameter("q", query)
             filters.filterIsInstance<SearchFilter>().firstOrNull()?.addQuery(builder)
-            builder.addQueryParameter("q_type","").addQueryParameter("platform","3")
+            builder.addQueryParameter("q_type", "").addQueryParameter("platform", "3")
             if (!alwaysUseToken) {
                 headersBuilder.setToken(preferences.getString(TOKEN_PREF, "")!!)
             }
         } else {
             builder.addPathSegments("api/v3/comics")
             filters.filterIsInstance<CopyMangaFilter>().forEach {
-                if (it !is SearchFilter) it.addQuery(builder)
+                if (it !is SearchFilter) { it.addQuery(builder) }
             }
         }
         return Request.Builder().url(builder.build()).headers(headersBuilder.build()).build()
@@ -294,7 +291,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             throw Exception("访问受限，请尝试在插件设置中修改 User Agent")
         }
         val orders = result.chapter.words
-        val pageList = result.chapter.contents.filter{ it.url.contains("/${slug}/") }.withIndex().sortedBy{ orders[it.index] }.map { it.value }
+        val pageList = result.chapter.contents.filter { it.url.contains("/$slug/") }.withIndex().sortedBy { orders[it.index] }.map { it.value }
         return pageList.mapIndexed { i, it ->
             Page(i, imageUrl = it.url)
         }
@@ -305,27 +302,27 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private var imageQuality = preferences.getString(QUALITY_PREF, QUALITY[0])
     override fun imageRequest(page: Page): Request {
         var imageUrl = page.imageUrl!!
-        imageUrl = imageQualityRegex.replace(imageUrl,"c${imageQuality}x.")
+        imageUrl = imageQualityRegex.replace(imageUrl, "c${imageQuality}x.")
         val headers = Headers.Builder().setUserAgent(preferences.getString(USER_AGENT_PREF, DEFAULT_USER_AGENT)!!).build()
 
-        return GET(imageUrl,headers)
+        return GET(imageUrl, headers)
     }
 
     private inline fun <reified T> Response.parseAs(): T = use {
         if (header("Content-Type") != "application/json") {
             throw Exception("返回数据错误，不是json")
         } else if (code != 200) {
-            throw Exception(json.decodeFromStream<ResultMessageDto>(body!!.byteStream()).message)
+            throw Exception(json.decodeFromStream<ResultMessageDto>(body.byteStream()).message)
         }
-        json.decodeFromStream<ResultDto<T>>(body!!.byteStream()).results
+        json.decodeFromStream<ResultDto<T>>(body.byteStream()).results
     }
 
-    private inline fun showToast (context: Context, text: String, duration: Int = Toast.LENGTH_SHORT) {
-        if ( Looper.getMainLooper() == Looper.myLooper() ) {
+    private inline fun showToast(context: Context, text: String, duration: Int = Toast.LENGTH_SHORT) {
+        if (Looper.getMainLooper() == Looper.myLooper()) {
             Toast.makeText(context, text, duration).show()
         } else {
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, text, duration).show();
+                Toast.makeText(context, text, duration).show()
             }
         }
     }
@@ -351,7 +348,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     }
 
     private fun fetchGenres() {
-        if (genres.isNotEmpty() || isFetchingGenres) return
+        if (genres.isNotEmpty() || isFetchingGenres) { return }
         isFetchingGenres = true
         thread {
             try {
@@ -455,7 +452,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 true
             }
         }.let { screen.addPreference(it) }
-        
+
         ListPreference(screen.context).apply {
             key = CHAPTER_API_RATE_PREF
             title = "章节图片列表请求频率限制"
@@ -491,11 +488,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
             setOnPreferenceChangeListener { _, newValue ->
                 alwaysUseToken = newValue as Boolean
                 preferences.edit().putBoolean(ALWAYS_USE_TOKEN_PREF, alwaysUseToken).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "").build()
+                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" }).build()
                 true
             }
         }.let { screen.addPreference(it) }
-        
+
         EditTextPreference(screen.context).apply {
             key = USERNAME_PREF
             title = "用户名"
@@ -525,7 +522,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 val token = newValue as String
                 fetchTokenState = 0
                 preferences.edit().putString(TOKEN_PREF, token).apply()
-                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) preferences.getString(TOKEN_PREF, "")!! else "").build()
+                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) { preferences.getString(TOKEN_PREF, "")!! } else { "" }).build()
                 true
             }
         }.let { screen.addPreference(it) }
@@ -557,11 +554,11 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                 fetchTokenState = 1
                 thread {
                     try {
-                        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) { 
+                        if (!verifyToken(preferences.getString(TOKEN_PREF, "")!!)) {
                             val results = fetchToken(username, password)
-                            if ( results["success"] != "false"){
+                            if (results["success"] != "false") {
                                 preferences.edit().putString(TOKEN_PREF, results["token"]!!).apply()
-                                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) results["token"]!! else "").build()
+                                apiHeaders = apiHeaders.newBuilder().setToken(if (alwaysUseToken) { results["token"]!! } else { "" }).build()
                                 showToast(screen.context, "Token已经成功更新，返回重进刷新")
                             } else {
                                 showToast(screen.context, "Token获取失败，${results["message"]}")
@@ -569,7 +566,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                             }
                             fetchTokenState = 2
                         } else {
-                            showToast(screen.context,"Token仍有效，不需要更新")
+                            showToast(screen.context, "Token仍有效，不需要更新")
                             fetchTokenState = 3
                         }
                     } catch (e: Throwable) {
@@ -635,7 +632,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         private const val TOKEN_PREF = "tokenZ"
         private const val USER_AGENT_PREF = "userAgentZ"
         private const val VERSION_PREF = "versionZ"
-        private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"        
+        private const val BROWSER_USER_AGENT_PREF = "browserUserAgent"
 
         private const val WWW_PREFIX = "https://www."
         private const val API_PREFIX = "https://api."

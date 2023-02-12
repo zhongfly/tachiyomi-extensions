@@ -9,8 +9,9 @@ open class CopyMangaFilter(name: String, private val key: String, private val pa
     Filter.Select<String>(name, params.map { it.name }.toTypedArray()) {
     fun addQuery(builder: HttpUrl.Builder) {
         val param = params[state].value
-        if (param.isNotEmpty())
+        if (param.isNotEmpty()) {
             builder.addQueryParameter(key, param)
+        }
     }
 }
 
