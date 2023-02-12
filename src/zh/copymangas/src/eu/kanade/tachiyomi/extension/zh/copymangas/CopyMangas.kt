@@ -15,7 +15,6 @@ import androidx.preference.SwitchPreferenceCompat
 import com.luhuiguo.chinese.ChineseUtils
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -235,28 +234,13 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return MangasPage(page.list.map { it.toSManga() }, hasNextPage)
     }
 
-    // 让 WebView 打开网页而不是 API
-    override fun mangaDetailsRequest(manga: SManga): Request = GET(webDomain + manga.url, headers)
+    override fun getMangaUrl(manga: SManga): String = webDomain + manga.url
 
-    private fun realMangaDetailsRequest(manga: SManga) =
+    override fun mangaDetailsRequest(manga: SManga) =
         GET("$apiUrl/api/v3/comic2/${manga.url.removePrefix(MangaDto.URL_PREFIX)}?platform=3", apiHeaders)
-
-    override fun fetchMangaDetails(manga: SManga): Observable<SManga> =
-        client.newCall(realMangaDetailsRequest(manga)).asObservableSuccess().map { mangaDetailsParse(it) }
 
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
-
-    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
-        val result = ArrayList<SChapter>()
-        val response = client.newCall(realMangaDetailsRequest(manga)).execute()
-        val groups = response.parseAs<MangaWrapperDto>().groups!!.values
-        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
-        for (group in groups) {
-            result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
-        }
-        it.onSuccess(result)
-    }.toObservable()
 
     private fun ArrayList<SChapter>.fetchChapterGroup(manga: String, key: String, name: String) {
         val result = ArrayList<SChapter>(0)
@@ -278,8 +262,21 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         addAll(result.asReversed())
     }
 
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Single.create<List<SChapter>> {
+        val result = ArrayList<SChapter>()
+        val response = client.newCall(mangaDetailsRequest(manga)).execute()
+        val groups = response.parseAs<MangaWrapperDto>().groups!!.values
+        val mangaSlug = manga.url.removePrefix(MangaDto.URL_PREFIX)
+        for (group in groups) {
+            result.fetchChapterGroup(mangaSlug, group.path_word, group.name)
+        }
+        it.onSuccess(result)
+    }.toObservable()
+
     override fun chapterListRequest(manga: SManga) = throw UnsupportedOperationException("Not used.")
     override fun chapterListParse(response: Response) = throw UnsupportedOperationException("Not used.")
+
+    override fun getChapterUrl(chapter: SChapter): String = webDomain + chapter.url.replace("/chapter2/", "/chapter/")
 
     // 新版 API 中间是 /chapter2/ 并且返回值需要排序
     override fun pageListRequest(chapter: SChapter) = GET("$apiUrl/api/v3${chapter.url}?platform=3 ", apiHeaders)
