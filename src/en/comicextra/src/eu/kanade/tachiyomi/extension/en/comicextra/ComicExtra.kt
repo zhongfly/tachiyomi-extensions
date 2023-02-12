@@ -22,7 +22,7 @@ class ComicExtra : ParsedHttpSource() {
 
     override val name = "ComicExtra"
 
-    override val baseUrl = "https://www.comicextra.com"
+    override val baseUrl = "https://ww1.comicextra.com"
 
     override val lang = "en"
 
@@ -46,6 +46,7 @@ class ComicExtra : ParsedHttpSource() {
             filters.forEach { filter ->
                 when (filter) {
                     is GenreFilter -> url += "/${filter.toUriPart()}"
+                    else -> {}
                 }
             }
             GET(url + if (page > 1) "/$page" else "", headers)
@@ -96,7 +97,6 @@ class ComicExtra : ParsedHttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-
         val document = response.asJsoup()
         val nav = document.getElementsByClass("general-nav").first()
         val chapters = ArrayList<SChapter>()
@@ -130,13 +130,13 @@ class ComicExtra : ParsedHttpSource() {
     override fun chapterListSelector() = "table.table > tbody#list > tr:has(td)"
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlEl = element.select("td:nth-of-type(1) > a").first()
+        val urlEl = element.select("td:nth-of-type(1) > a").first()!!
         val dateEl = element.select("td:nth-of-type(2)")
 
         val chapter = SChapter.create()
         chapter.setUrlWithoutDomain(urlEl.attr("href").replace(" ", "%20"))
         chapter.name = urlEl.text()
-        chapter.date_upload = dateEl.text()?.let { dateParse(it) } ?: 0
+        chapter.date_upload = dateParse(dateEl.text())
         return chapter
     }
 
@@ -166,7 +166,7 @@ class ComicExtra : ParsedHttpSource() {
     override fun getFilterList() = FilterList(
         Filter.Header("Note: can't combine search types"),
         Filter.Separator(),
-        GenreFilter(getGenreList)
+        GenreFilter(getGenreList),
     )
 
     private class GenreFilter(genrePairs: Array<Pair<String, String>>) : UriPartFilter("Category", genrePairs)
@@ -233,6 +233,6 @@ class ComicExtra : ParsedHttpSource() {
         Pair("War", "war-comic"),
         Pair("Western", "western-comic"),
         Pair("Zombies", "zombies-comic"),
-        Pair("Zulema Scotto Lavina", "zulema-scotto-lavina-comic")
+        Pair("Zulema Scotto Lavina", "zulema-scotto-lavina-comic"),
     )
 }

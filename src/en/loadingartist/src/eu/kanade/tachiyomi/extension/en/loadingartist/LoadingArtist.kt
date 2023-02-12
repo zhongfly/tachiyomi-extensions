@@ -37,7 +37,7 @@ class LoadingArtist : HttpSource() {
         val url: String,
         val title: String,
         val date: String = "",
-        val section: String
+        val section: String,
     )
 
     // Popular Section (list of comic archives by year)
@@ -53,10 +53,10 @@ class LoadingArtist : HttpSource() {
                         artist = "Loading Artist"
                         author = artist
                         status = SManga.ONGOING
-                    }
+                    },
                 ),
-                false
-            )
+                false,
+            ),
         )
     }
 
@@ -89,7 +89,7 @@ class LoadingArtist : HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val comics = json.parseToJsonElement(response.body!!.string()).jsonObject.map {
+        val comics = json.parseToJsonElement(response.body.string()).jsonObject.map {
             json.decodeFromJsonElement<Comic>(it.value)
         }
         val validTypes = listOf("comic", "game", "art")
@@ -109,7 +109,7 @@ class LoadingArtist : HttpSource() {
     // Pages
 
     override fun pageListParse(response: Response): List<Page> {
-        val imageUrl = response.asJsoup().selectFirst("div.main-image-container img")
+        val imageUrl = response.asJsoup().selectFirst("div.main-image-container img")!!
             .attr("abs:src")
         return listOf(Page(0, response.request.url.toString(), imageUrl))
     }

@@ -122,9 +122,9 @@ class FuryoSquad : ParsedHttpSource() {
         document.select("div.comic-info").let {
             it.select("p.fs-comic-label").forEach { el ->
                 when (el.text().lowercase(Locale.ROOT)) {
-                    "scénario" -> manga.author = el.nextElementSibling().text()
-                    "dessins" -> manga.artist = el.nextElementSibling().text()
-                    "genre" -> manga.genre = el.nextElementSibling().text()
+                    "scénario" -> manga.author = el.nextElementSibling()!!.text()
+                    "dessins" -> manga.artist = el.nextElementSibling()!!.text()
+                    "genre" -> manga.genre = el.nextElementSibling()!!.text()
                 }
             }
             manga.description = it.select("div.fs-comic-description").text()
@@ -150,8 +150,9 @@ class FuryoSquad : ParsedHttpSource() {
 
     private fun parseChapterDate(date: String): Long {
         val lcDate = date.lowercase(Locale.ROOT)
-        if (lcDate.startsWith("il y a"))
+        if (lcDate.startsWith("il y a")) {
             parseRelativeDate(lcDate).let { return it }
+        }
 
         // Handle 'day before yesterday', yesterday' and 'today', using midnight
         var relativeDate: Calendar? = null
@@ -186,7 +187,6 @@ class FuryoSquad : ParsedHttpSource() {
     }
 
     private fun parseRelativeDate(date: String): Long {
-
         val value = date.split(" ")[3].toIntOrNull()
 
         return if (value != null) {

@@ -1,8 +1,16 @@
 package eu.kanade.tachiyomi.multisrc.madara
 
+import android.app.Application
+import android.content.SharedPreferences
+import android.util.Log
+import android.widget.Toast
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservable
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -11,6 +19,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -18,37 +27,118 @@ import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import rx.Observable
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import java.io.IOException
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.absoluteValue
-import kotlin.random.Random
 
 abstract class Madara(
     override val name: String,
     override val baseUrl: String,
     final override val lang: String,
-    private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
-) : ParsedHttpSource() {
+    private val dateFormat: SimpleDateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.US),
+) : ParsedHttpSource(), ConfigurableSource {
+
+    private val preferences: SharedPreferences by lazy {
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+    }
 
     override val supportsLatest = true
 
+    // override with true if you want useRandomUserAgentByDefault to be on by default for some source
+    protected open val useRandomUserAgentByDefault: Boolean = false
+
+    /**
+     * override include/exclude user-agent string if needed
+     *   some example:
+     *      listOf("chrome")
+     *      listOf("linux", "windows")
+     *      listOf("108")
+     */
+    protected open val filterIncludeUserAgent: List<String> = listOf()
+    protected open val filterExcludeUserAgent: List<String> = listOf()
+
+    private var userAgent: String? = null
+    private var checkedUa = false
+
+    private val hasUaIntercept by lazy {
+        client.interceptors.toString().contains("uaIntercept")
+    }
+
+    protected val uaIntercept = object : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val useRandomUa = preferences.getBoolean(PREF_KEY_RANDOM_UA, false)
+            val customUa = preferences.getString(PREF_KEY_CUSTOM_UA, "")
+
+            try {
+                if (hasUaIntercept && (useRandomUa || customUa!!.isNotBlank())) {
+                    Log.i("Extension_setting", "$TITLE_RANDOM_UA or $TITLE_CUSTOM_UA option is ENABLED")
+
+                    if (customUa!!.isNotBlank() && useRandomUa.not()) {
+                        userAgent = customUa
+                    }
+
+                    if (userAgent.isNullOrBlank() && !checkedUa) {
+                        val uaResponse = chain.proceed(GET(UA_DB_URL))
+
+                        if (uaResponse.isSuccessful) {
+                            var listUserAgentString =
+                                json.decodeFromString<Map<String, List<String>>>(uaResponse.body.string())["desktop"]
+
+                            if (filterIncludeUserAgent.isNotEmpty()) {
+                                listUserAgentString = listUserAgentString!!.filter {
+                                    filterIncludeUserAgent.any { filter ->
+                                        it.contains(filter, ignoreCase = true)
+                                    }
+                                }
+                            }
+                            if (filterExcludeUserAgent.isNotEmpty()) {
+                                listUserAgentString = listUserAgentString!!.filterNot {
+                                    filterExcludeUserAgent.any { filter ->
+                                        it.contains(filter, ignoreCase = true)
+                                    }
+                                }
+                            }
+                            userAgent = listUserAgentString!!.random()
+                            checkedUa = true
+                        }
+
+                        uaResponse.close()
+                    }
+
+                    if (userAgent.isNullOrBlank().not()) {
+                        val newRequest = chain.request().newBuilder()
+                            .header("User-Agent", userAgent!!.trim())
+                            .build()
+
+                        return chain.proceed(newRequest)
+                    }
+                }
+
+                return chain.proceed(chain.request())
+            } catch (e: Exception) {
+                throw IOException(e.message)
+            }
+        }
+    }
+
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
+        .addInterceptor(uaIntercept)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
-
-    // helps with cloudflare for some sources, makes it worse for others; override with empty string if the latter is true
-    protected open val userAgentRandomizer = " ${Random.nextInt().absoluteValue}"
 
     protected open val json: Json by injectLazy()
 
@@ -79,8 +169,7 @@ abstract class Madara(
     protected open val fetchGenres: Boolean = true
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
-        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0$userAgentRandomizer")
-        .add("Referer", baseUrl)
+        .add("Referer", "$baseUrl/")
 
     // Popular Manga
 
@@ -138,7 +227,7 @@ abstract class Madara(
             "$baseUrl/wp-admin/admin-ajax.php",
             formHeaders,
             formBuilder(page, true).build(),
-            CacheControl.FORCE_NETWORK
+            CacheControl.FORCE_NETWORK,
         )
     }
 
@@ -207,9 +296,11 @@ abstract class Madara(
                 if (!response.isSuccessful) {
                     response.close()
                     // Error message for exceeding last page
-                    if (response.code == 404)
+                    if (response.code == 404) {
                         error("Already on the Last Page!")
-                    else throw Exception("HTTP error ${response.code}")
+                    } else {
+                        throw Exception("HTTP error ${response.code}")
+                    }
                 }
             }
             .map { response ->
@@ -269,6 +360,7 @@ abstract class Madara(
                             if (list.isNotEmpty()) { list.forEach { genre -> url.addQueryParameter("genre[]", genre.id) } }
                         }
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -376,7 +468,7 @@ abstract class Madara(
                             add("vars[meta_query][$metaQueryIdx][key]", "manga_adult_content")
                             add(
                                 "vars[meta_query][$metaQueryIdx][compare]",
-                                if (filter.state == 1) "not exists" else "exists"
+                                if (filter.state == 1) "not exists" else "exists",
                             )
 
                             metaQueryIdx++
@@ -399,6 +491,7 @@ abstract class Madara(
                             taxQueryIdx++
                         }
                     }
+                    else -> {}
                 }
             }
         }
@@ -411,7 +504,7 @@ abstract class Madara(
             "$baseUrl/wp-admin/admin-ajax.php",
             searchHeaders,
             formBodyBuilder.build(),
-            CacheControl.FORCE_NETWORK
+            CacheControl.FORCE_NETWORK,
         )
     }
 
@@ -441,7 +534,10 @@ abstract class Madara(
     }
 
     protected val statusFilterOptionsValues: Array<String> = arrayOf(
-        "end", "on-going", "canceled", "on-hold"
+        "end",
+        "on-going",
+        "canceled",
+        "on-hold",
     )
 
     protected open val orderByFilterTitle: String = when (lang) {
@@ -451,17 +547,33 @@ abstract class Madara(
 
     protected open val orderByFilterOptions: Array<String> = when (lang) {
         "pt-BR" -> arrayOf(
-            "Relevância", "Recentes", "A-Z", "Avaliação",
-            "Tendência", "Visualizações", "Novos"
+            "Relevância",
+            "Recentes",
+            "A-Z",
+            "Avaliação",
+            "Tendência",
+            "Visualizações",
+            "Novos",
         )
         else -> arrayOf(
-            "Relevance", "Latest", "A-Z", "Rating",
-            "Trending", "Most Views", "New"
+            "Relevance",
+            "Latest",
+            "A-Z",
+            "Rating",
+            "Trending",
+            "Most Views",
+            "New",
         )
     }
 
     protected val orderByFilterOptionsValues: Array<String> = arrayOf(
-        "", "latest", "alphabet", "rating", "trending", "views", "new-manga"
+        "",
+        "latest",
+        "alphabet",
+        "rating",
+        "trending",
+        "views",
+        "new-manga",
     )
 
     protected open val genreConditionFilterTitle: String = when (lang) {
@@ -515,12 +627,12 @@ abstract class Madara(
 
     protected class GenreConditionFilter(title: String, options: Array<String>) : UriPartFilter(
         title,
-        options.zip(arrayOf("", "1")).toTypedArray()
+        options.zip(arrayOf("", "1")).toTypedArray(),
     )
 
     protected class AdultContentFilter(title: String, options: Array<String>) : UriPartFilter(
         title,
-        options.zip(arrayOf("", "0", "1")).toTypedArray()
+        options.zip(arrayOf("", "0", "1")).toTypedArray(),
     )
 
     protected class GenreList(title: String, genres: List<Genre>) : Filter.Group<Genre>(title, genres)
@@ -537,9 +649,9 @@ abstract class Madara(
             OrderByFilter(
                 orderByFilterTitle,
                 orderByFilterOptions.zip(orderByFilterOptionsValues),
-                if (useLoadMoreSearch) 5 else 0
+                if (useLoadMoreSearch) 5 else 0,
             ),
-            AdultContentFilter(adultContentFilterTitle, adultContentFilterOptions)
+            AdultContentFilter(adultContentFilterTitle, adultContentFilterOptions),
         )
 
         if (useLoadMoreSearch) {
@@ -551,12 +663,12 @@ abstract class Madara(
                 Filter.Separator(),
                 Filter.Header(genreFilterHeader),
                 GenreConditionFilter(genreConditionFilterTitle, genreConditionFilterOptions),
-                GenreList(genreFilterTitle, genresList)
+                GenreList(genreFilterTitle, genresList),
             )
         } else if (fetchGenres) {
             filters += listOf(
                 Filter.Separator(),
-                Filter.Header(genresMissingWarning)
+                Filter.Header(genresMissingWarning),
             )
         }
 
@@ -605,22 +717,28 @@ abstract class Madara(
     // Manga Details Parse
 
     protected val completedStatusList: Array<String> = arrayOf(
-        "Completed", "Completo", "Concluído", "Concluido", "Terminé", "Hoàn Thành", "مكتملة",
-        "مكتمل"
+        "Completed",
+        "Completo",
+        "Concluído",
+        "Concluido",
+        "Terminé",
+        "Hoàn Thành",
+        "مكتملة",
+        "مكتمل",
     )
 
     protected val ongoingStatusList: Array<String> = arrayOf(
         "OnGoing", "Продолжается", "Updating", "Em Lançamento", "Em lançamento", "Em andamento",
         "Em Andamento", "En cours", "Ativo", "Lançando", "Đang Tiến Hành", "Devam Ediyor",
-        "Devam ediyor", "In Corso", "In Arrivo", "مستمرة", "مستمر", "En Curso"
+        "Devam ediyor", "In Corso", "In Arrivo", "مستمرة", "مستمر", "En Curso",
     )
 
     protected val hiatusStatusList: Array<String> = arrayOf(
-        "On Hold"
+        "On Hold",
     )
 
     protected val canceledStatusList: Array<String> = arrayOf(
-        "Canceled"
+        "Canceled",
     )
 
     override fun mangaDetailsParse(document: Document): SManga {
@@ -665,9 +783,22 @@ abstract class Madara(
                 .toMutableSet()
 
             // add tag(s) to genre
+            val mangaTitle = try {
+                manga.title
+            } catch (_: UninitializedPropertyAccessException) {
+                "not initialized"
+            }
+
             if (mangaDetailsSelectorTag.isNotEmpty()) {
                 select(mangaDetailsSelectorTag).forEach { element ->
-                    if (genres.contains(element.text()).not()) {
+                    if (genres.contains(element.text()).not() &&
+                        element.text().length <= 25 &&
+                        element.text().contains("read", true).not() &&
+                        element.text().contains(name, true).not() &&
+                        element.text().contains(name.replace(" ", ""), true).not() &&
+                        element.text().contains(mangaTitle, true).not() &&
+                        element.text().contains(altName, true).not()
+                    ) {
                         genres.add(element.text().lowercase(Locale.ROOT))
                     }
                 }
@@ -714,7 +845,7 @@ abstract class Madara(
     }
     open val updatingRegex = "Updating|Atualizando".toRegex(RegexOption.IGNORE_CASE)
 
-    public fun String.notUpdating(): Boolean {
+    fun String.notUpdating(): Boolean {
         return this.contains(updatingRegex).not()
     }
 
@@ -750,7 +881,7 @@ abstract class Madara(
         val xhrHeaders = headersBuilder()
             .add("Content-Length", form.contentLength().toString())
             .add("Content-Type", form.contentType().toString())
-            .add("Referer", baseUrl)
+            .add("Referer", "$baseUrl/")
             .add("X-Requested-With", "XMLHttpRequest")
             .build()
 
@@ -759,7 +890,7 @@ abstract class Madara(
 
     protected open fun xhrChaptersRequest(mangaUrl: String): Request {
         val xhrHeaders = headersBuilder()
-            .add("Referer", baseUrl)
+            .add("Referer", "$baseUrl/")
             .add("X-Requested-With", "XMLHttpRequest")
             .build()
 
@@ -776,8 +907,11 @@ abstract class Madara(
             val mangaUrl = document.location().removeSuffix("/")
             val mangaId = chaptersWrapper.attr("data-id")
 
-            var xhrRequest = if (useNewChapterEndpoint || oldChapterEndpointDisabled)
-                xhrChaptersRequest(mangaUrl) else oldXhrChaptersRequest(mangaId)
+            var xhrRequest = if (useNewChapterEndpoint || oldChapterEndpointDisabled) {
+                xhrChaptersRequest(mangaUrl)
+            } else {
+                oldXhrChaptersRequest(mangaId)
+            }
             var xhrResponse = client.newCall(xhrRequest).execute()
 
             // Newer Madara versions throws HTTP 400 when using the old endpoint.
@@ -805,6 +939,7 @@ abstract class Madara(
 
     open val chapterUrlSelector = "a"
 
+    // can cause some issue for some site. blocked by cloudflare when opening the chapter pages
     open val chapterUrlSuffix = "?style=list"
 
     override fun chapterFromElement(element: Element): SChapter {
@@ -920,7 +1055,7 @@ abstract class Madara(
                 document.location(),
                 element.select("img").first()?.let {
                     it.absUrl(if (it.hasAttr("data-src")) "data-src" else "src")
-                }
+                },
             )
         }
     }
@@ -1021,14 +1156,76 @@ abstract class Madara(
             .orEmpty()
             .map { li ->
                 Genre(
-                    li.selectFirst("label").text(),
-                    li.selectFirst("input[type=checkbox]").`val`()
+                    li.selectFirst("label")!!.text(),
+                    li.selectFirst("input[type=checkbox]")!!.`val`(),
                 )
             }
     }
 
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        if (hasUaIntercept) {
+            val prefUserAgent = SwitchPreferenceCompat(screen.context).apply {
+                key = PREF_KEY_RANDOM_UA
+                title = TITLE_RANDOM_UA
+                summary = if (preferences.getBoolean(PREF_KEY_RANDOM_UA, useRandomUserAgentByDefault)) userAgent else ""
+                setDefaultValue(useRandomUserAgentByDefault)
+
+                setOnPreferenceChangeListener { _, newValue ->
+                    val useRandomUa = newValue as Boolean
+                    preferences.edit().putBoolean(PREF_KEY_RANDOM_UA, useRandomUa).apply()
+                    if (!useRandomUa) {
+                        Toast.makeText(screen.context, RESTART_APP_STRING, Toast.LENGTH_LONG).show()
+                    } else {
+                        userAgent = null
+                        if (preferences.getString(PREF_KEY_CUSTOM_UA, "").isNullOrBlank().not()) {
+                            Toast.makeText(screen.context, SUMMARY_CLEANING_CUSTOM_UA, Toast.LENGTH_LONG).show()
+                        }
+                    }
+
+                    preferences.edit().putString(PREF_KEY_CUSTOM_UA, "").apply()
+                    // prefCustomUserAgent.summary = ""
+                    true
+                }
+            }
+            screen.addPreference(prefUserAgent)
+
+            val prefCustomUserAgent = EditTextPreference(screen.context).apply {
+                key = PREF_KEY_CUSTOM_UA
+                title = TITLE_CUSTOM_UA
+                summary = preferences.getString(PREF_KEY_CUSTOM_UA, "")!!.trim()
+                setOnPreferenceChangeListener { _, newValue ->
+                    val customUa = newValue as String
+                    preferences.edit().putString(PREF_KEY_CUSTOM_UA, customUa).apply()
+                    if (customUa.isBlank()) {
+                        Toast.makeText(screen.context, RESTART_APP_STRING, Toast.LENGTH_LONG).show()
+                    } else {
+                        userAgent = null
+                    }
+                    summary = customUa.trim()
+                    prefUserAgent.summary = ""
+                    prefUserAgent.isChecked = false
+                    true
+                }
+            }
+            screen.addPreference(prefCustomUserAgent)
+        } else {
+            Toast.makeText(screen.context, DOESNOT_SUPPORT_STRING, Toast.LENGTH_LONG).show()
+        }
+    }
+
     companion object {
+        const val TITLE_RANDOM_UA = "Use Random Latest User-Agent"
+        const val PREF_KEY_RANDOM_UA = "pref_key_random_ua"
+
+        const val TITLE_CUSTOM_UA = "Custom User-Agent"
+        const val PREF_KEY_CUSTOM_UA = "pref_key_custom_ua"
+
+        const val SUMMARY_CLEANING_CUSTOM_UA = "$TITLE_CUSTOM_UA cleared."
+
+        const val RESTART_APP_STRING = "Restart Tachiyomi to apply new setting."
+        const val DOESNOT_SUPPORT_STRING = "This extension doesn't support User-Agent options."
         const val URL_SEARCH_PREFIX = "slug:"
+        private const val UA_DB_URL = "https://tachiyomiorg.github.io/user-agents/user-agents.json"
     }
 }
 

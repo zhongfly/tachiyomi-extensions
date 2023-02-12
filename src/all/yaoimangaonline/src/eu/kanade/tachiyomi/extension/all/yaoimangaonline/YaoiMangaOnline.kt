@@ -55,7 +55,7 @@ class YaoiMangaOnline : ParsedHttpSource() {
                     is TagFilter -> if (it.state != 0) {
                         addEncodedPathSegments("tag/$it")
                     }
-                    else -> Unit
+                    else -> {}
                 }
             }
             addEncodedPathSegments("page/$page")
@@ -67,15 +67,15 @@ class YaoiMangaOnline : ParsedHttpSource() {
         SManga.create().apply {
             title = element.attr("title")
             setUrlWithoutDomain(element.attr("href"))
-            thumbnail_url = element.selectFirst("img").attr("src")
+            thumbnail_url = element.selectFirst("img")!!.attr("src")
         }
 
     override fun mangaDetailsParse(document: Document) =
         SManga.create().apply {
-            title = document.selectFirst(".entry-title").text()
+            title = document.selectFirst(".entry-title")!!.text()
             thumbnail_url = document.head()
-                .selectFirst("meta[property=og:image]").attr("content")
-            description = document.selectFirst(".entry-content > p")
+                .selectFirst("meta[property=og:image]")!!.attr("content")
+            description = document.selectFirst(".entry-content > p")!!
                 .html().replace("<br> ", "\n")
             genre = document.select(".meta-tags > a").joinToString { it.text() }
         }
@@ -84,9 +84,9 @@ class YaoiMangaOnline : ParsedHttpSource() {
 
     override fun chapterFromElement(element: Element) =
         SChapter.create().apply {
-            name = element.selectFirst(".acp_title").text()
+            name = element.selectFirst(".acp_title")!!.text()
             setUrlWithoutDomain(
-                element.selectFirst("a")?.attr("href") ?: element.baseUri()
+                element.selectFirst("a")?.attr("href") ?: element.baseUri(),
             )
         }
 

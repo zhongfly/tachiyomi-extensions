@@ -79,6 +79,7 @@ class AsgardTeam : ParsedHttpSource() {
             filters.forEach { filter ->
                 when (filter) {
                     is TypeFilter -> url.addQueryParameter("type", filter.toUriPart())
+                    else -> {}
                 }
             }
             GET(url.build().toString(), headers)
@@ -95,7 +96,7 @@ class AsgardTeam : ParsedHttpSource() {
 
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
         return SManga.create().apply {
-            document.select("div.author-info-title").first().let { info ->
+            document.select("div.author-info-title").first()!!.let { info ->
                 title = info.select("h6").text()
             }
             document.select("div.review-author-info").let { info ->
@@ -150,11 +151,11 @@ class AsgardTeam : ParsedHttpSource() {
 
     private class TypeFilter(vals: Array<Pair<String?, String>>) : UriPartFilter("Type", vals)
 
-    open fun getTypeFilter(): Array<Pair<String?, String>> = arrayOf(
+    private fun getTypeFilter(): Array<Pair<String?, String>> = arrayOf(
         Pair("", "<select>"),
         Pair("3", "صينية (مانها)"),
         Pair("2", "مانجا (يابانية)"),
-        Pair("1", "كورية (مانهوا)")
+        Pair("1", "كورية (مانهوا)"),
     )
 
     open class UriPartFilter(displayName: String, private val vals: Array<Pair<String?, String>>) :

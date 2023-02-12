@@ -86,7 +86,7 @@ class MikuDoujin : ParsedHttpSource() {
     override fun fetchSearchManga(
         page: Int,
         query: String,
-        filters: FilterList
+        filters: FilterList,
     ): Observable<MangasPage> {
         val searchMethod = query.startsWith("http")
         return client.newCall(
@@ -95,8 +95,8 @@ class MikuDoujin : ParsedHttpSource() {
                     query
                 } else {
                     "$baseUrl/genre/${genre(query)}/?page=$page"
-                }
-            )
+                },
+            ),
         )
             .asObservableSuccess()
             .map {
@@ -109,7 +109,7 @@ class MikuDoujin : ParsedHttpSource() {
                             thumbnail_url =
                                 document.select("div.sr-card-body div.col-md-4 img").attr("abs:src")
                             initialized = false
-                        }
+                        },
                     )
                 } else {
                     document.select(popularMangaSelector()).map { element ->
@@ -124,7 +124,7 @@ class MikuDoujin : ParsedHttpSource() {
     // Manga summary page
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div.sr-card-body").first()
+        val infoElement = document.select("div.sr-card-body").first()!!
 
         return SManga.create().apply {
             title = document.title()
@@ -133,8 +133,8 @@ class MikuDoujin : ParsedHttpSource() {
             status = SManga.UNKNOWN
             genre = infoElement.select("div.sr-card-body div.col-md-8 div.tags a")
                 .joinToString { it.text() }
-            description = infoElement.select("div.col-md-8").first().ownText()
-            thumbnail_url = infoElement.select("div.col-md-4 img").first().attr("abs:src")
+            description = infoElement.select("div.col-md-8").first()!!.ownText()
+            thumbnail_url = infoElement.select("div.col-md-4 img").first()!!.attr("abs:src")
             initialized = true
         }
     }
@@ -169,7 +169,6 @@ class MikuDoujin : ParsedHttpSource() {
     }
 
     override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> {
-
         return client.newCall(GET("$baseUrl/${manga.url}"))
             .asObservableSuccess()
             .map {

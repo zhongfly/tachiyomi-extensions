@@ -101,14 +101,14 @@ abstract class DynastyScans : ParsedHttpSource() {
     private fun buildListfromResponse(): List<Node> {
         return client.newCall(
             Request.Builder().headers(headers)
-                .url(popularMangaInitialUrl()).build()
+                .url(popularMangaInitialUrl()).build(),
         ).execute().asJsoup()
             .select("div#main").first { it.hasText() }.childNodes()
     }
 
     protected fun parseHeader(document: Document, manga: SManga): Boolean {
-        manga.title = document.selectFirst("div.tags > h2.tag-title > b").text()
-        val elements = document.selectFirst("div.tags > h2.tag-title").getElementsByTag("a")
+        manga.title = document.selectFirst("div.tags > h2.tag-title > b")!!.text()
+        val elements = document.selectFirst("div.tags > h2.tag-title")!!.getElementsByTag("a")
         if (elements.isEmpty()) {
             return false
         }
@@ -130,7 +130,10 @@ abstract class DynastyScans : ParsedHttpSource() {
     }
 
     protected fun parseGenres(document: Document, manga: SManga, select: String = "div.tags > div.tag-tags a") {
-        parseGenres(document.select(select), manga)
+        val tagElements = document.select(select)
+        val doujinElements = document.select("div.tags >  h2.tag-title > small > a[href*=doujins]")
+        tagElements.addAll(doujinElements)
+        parseGenres(tagElements, manga)
     }
 
     protected fun parseGenres(elements: Elements, manga: SManga) {
@@ -197,7 +200,7 @@ abstract class DynastyScans : ParsedHttpSource() {
 
     override fun pageListParse(document: Document): List<Page> {
         return try {
-            val imageUrl = document.select("script").last().html().substringAfter("var pages = [").substringBefore("];")
+            val imageUrl = document.select("script").last()!!.html().substringAfter("var pages = [").substringBefore("];")
 
             json.parseToJsonElement("[$imageUrl]").jsonArray.mapIndexed { index, it ->
                 Page(index, imageUrl = "$baseUrl${it.jsonObject["image"]!!.jsonPrimitive.content}")
@@ -242,19 +245,9 @@ abstract class DynastyScans : ParsedHttpSource() {
             return (0..this.lastIndex).firstOrNull { this[it].contains(partial) }
                 ?: -1
         }
-
-        fun getItem(partial: String): String {
-            return (0..this.lastIndex)
-                .firstOrNull { super.get(it).contains(partial) }
-                ?.let { super.get(it) }
-                ?: ""
-        }
     }
 
-    class Validate(_isManga: Boolean, _pos: Int) {
-        val isManga = _isManga
-        val pos = _pos
-    }
+    data class Validate(val _isManga: Boolean, val _pos: Int)
 
     override fun popularMangaNextPageSelector() = ""
     override fun latestUpdatesSelector() = ""

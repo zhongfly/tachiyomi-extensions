@@ -16,7 +16,7 @@ class MangaDto(
     private val update_time: JsonPrimitive? = null,
     private val image: String,
     private val auther: String,
-    private val desc: String,
+    private val desc: String?,
     private val mhstatus: Int,
     private val keyword: String,
 ) {
@@ -33,14 +33,14 @@ class MangaDto(
         thumbnail_url = image.toImageUrl()
         val rawUpdateTime = update_time
         if (rawUpdateTime == null) {
-            description = desc.trim()
+            description = desc?.trim()
             return@apply
         }
         val updateTime = when {
             rawUpdateTime.isString -> rawUpdateTime.content
             else -> dateFormat.format(Date(rawUpdateTime.long * 1000))
         }
-        description = "更新时间：$updateTime\n\n${desc.trim()}"
+        description = "更新时间：$updateTime\n\n${desc?.trim()}"
         initialized = true
     }
 }
@@ -49,8 +49,7 @@ fun String.toImageUrl() =
     if (startsWith("http")) {
         this
     } else {
-        val i = (hashCode() and 1) + 1 // 1 or 2
-        "https://blcnimghost$i.cc$this"
+        "https://blcnimghost2.cc$this"
     }
 
 @Serializable
@@ -67,7 +66,7 @@ class ChapterDto(
 private val dateFormat by lazy { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH) }
 
 @Serializable
-class ListPageDto<T>(val lastPage: Boolean, val list: List<T>)
+class ListPageDto<T>(val lastPage: Boolean, val list: List<T> = emptyList())
 
 @Serializable
 class ResultDto<T>(val result: T)

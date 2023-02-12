@@ -61,10 +61,11 @@ class AnimeGDRClub : ParsedHttpSource() {
                             }
                         }
                     }
+                    else -> {}
                 }
             }
 
-            return GET("${if (status.isNotEmpty()) "$baseUrl/serie.php#stati=$status" else url}", headers)
+            return GET(if (status.isNotEmpty()) "$baseUrl/serie.php#stati=$status" else url.toString(), headers)
         }
     }
     //endregion
@@ -79,12 +80,12 @@ class AnimeGDRClub : ParsedHttpSource() {
 
         if ((encFrags[0].isNotEmpty()) and (encFrags[0] != "null")) {
             nume = 1
-            if (encFrags[0].startsWith("stati=")) {
-                sele = encFrags.map {
+            sele = if (encFrags[0].startsWith("stati=")) {
+                encFrags.joinToString(", ") {
                     ".${it.replace("stati=", "")} > .manga"
-                }.joinToString(", ")
+                }
             } else {
-                sele = "div.manga:contains(${encFrags.joinToString("-")})"
+                "div.manga:contains(${encFrags.joinToString("-")})"
             }
         }
 
@@ -108,9 +109,9 @@ class AnimeGDRClub : ParsedHttpSource() {
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
 
-        manga.thumbnail_url = "$baseUrl/${element.selectFirst("img").attr("src")}"
-        manga.url = element.selectFirst("a.linkalmanga").attr("href")
-        manga.title = element.selectFirst("div.nomeserie > span").text()
+        manga.thumbnail_url = "$baseUrl/${element.selectFirst("img")!!.attr("src")}"
+        manga.url = element.selectFirst("a.linkalmanga")!!.attr("href")
+        manga.title = element.selectFirst("div.nomeserie > span")!!.text()
 
         return manga
     }
@@ -118,8 +119,8 @@ class AnimeGDRClub : ParsedHttpSource() {
         val manga = SManga.create()
 
         manga.setUrlWithoutDomain("http://www.agcscanlation.it/progetto.php?nome=${element.attr("href").toHttpUrlOrNull()!!.queryParameter("nome")}")
-        manga.title = element.selectFirst(".titolo").text()
-        manga.thumbnail_url = "$baseUrl/${element.selectFirst("img").attr("src")}"
+        manga.title = element.selectFirst(".titolo")!!.text()
+        manga.thumbnail_url = "$baseUrl/${element.selectFirst("img")!!.attr("src")}"
 
         return manga
     }
@@ -135,10 +136,10 @@ class AnimeGDRClub : ParsedHttpSource() {
             infoElement.text().contains("Interrotto") -> SManga.ON_HIATUS
             else -> SManga.UNKNOWN
         }
-        manga.genre = infoElement.select("span.generi > a").map {
+        manga.genre = infoElement.select("span.generi > a").joinToString(", ") {
             it.text()
-        }.joinToString(", ")
-        manga.description = document.select("span.trama")?.text()?.substringAfter("Trama: ")
+        }
+        manga.description = document.select("span.trama").text().substringAfter("Trama: ")
 
         return manga
     }
@@ -163,7 +164,7 @@ class AnimeGDRClub : ParsedHttpSource() {
                     setUrlWithoutDomain(it.attr("href").replace("reader", "readerr"))
                     name = it.text()
                     chapter_number = it.text().filter { it.isDigit() }.toFloat()
-                }
+                },
             )
         }
 
@@ -205,13 +206,13 @@ class AnimeGDRClub : ParsedHttpSource() {
         Filter.Header("La ricerca non accetta i filtri e viceversa"),
         SelezType(listOf("Stato", "Genere")),
         StatusList(getStatusList()),
-        GenreSelez(getGenreList())
+        GenreSelez(getGenreList()),
     )
 
     private fun getStatusList() = listOf(
         Status("In corso", "progettiincorso"),
         Status("Finito", "progetticonclusi-progettioneshot"),
-        Status("Interrotto", "progettiinterrotti")
+        Status("Interrotto", "progettiinterrotti"),
     )
     private fun getGenreList() = listOf("Avventura", "Azione", "Comico", "Commedia", "Drammatico", "Ecchi", "Fantascienza", "Fantasy", "Guerra", "Harem", "Horror", "Isekai", "Mecha", "Mistero", "Musica", "Psicologico", "Scolastico", "Sentimentale", "Slice of Life", "Sovrannaturale", "Sperimentale", "Storico", "Thriller")
     //endregion

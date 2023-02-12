@@ -22,7 +22,7 @@ class Mangafreak : ParsedHttpSource() {
 
     override val lang: String = "en"
 
-    override val baseUrl: String = "https://w13.mangafreak.net"
+    override val baseUrl: String = "https://w14.mangafreak.net"
 
     override val supportsLatest: Boolean = true
 
@@ -64,7 +64,7 @@ class Mangafreak : ParsedHttpSource() {
     override fun latestUpdatesFromElement(element: Element): SManga = SManga.create().apply {
         thumbnail_url = element.select("img").attr("abs:src").replace("mini", "manga").substringBeforeLast("/") + ".jpg"
         element.select("a").apply {
-            title = first().text()
+            title = first()!!.text()
             url = attr("href")
         }
     }
@@ -93,6 +93,7 @@ class Mangafreak : ParsedHttpSource() {
                 }
                 is StatusFilter -> url.addPathSegments("Status/${filter.toUriPart()}")
                 is TypeFilter -> url.addPathSegments("Type/${filter.toUriPart()}")
+                else -> {}
             }
         }
 
@@ -140,7 +141,7 @@ class Mangafreak : ParsedHttpSource() {
             } else {
                 val sb = StringBuilder("0.")
                 for (x in match.groupValues[2]) {
-                    sb.append(x.toInt() - 'a'.toInt() + 1)
+                    sb.append(x.code - 'a'.code + 1)
                 }
                 val p2 = sb.toString().toFloat()
                 val p1 = match.groupValues[1].toFloat()
@@ -180,7 +181,7 @@ class Mangafreak : ParsedHttpSource() {
         Filter.Header("Filters do not work if search bar is empty"),
         GenreFilter(getGenreList()),
         TypeFilter(),
-        StatusFilter()
+        StatusFilter(),
     )
     private fun getGenreList() = listOf(
         Genre("Act"),
@@ -221,7 +222,7 @@ class Mangafreak : ParsedHttpSource() {
         Genre("Tragedy"),
         Genre("Vampire"),
         Genre("Yaoi"),
-        Genre("Yuri")
+        Genre("Yuri"),
     )
 
     private class TypeFilter : UriPartFilter(
@@ -229,8 +230,8 @@ class Mangafreak : ParsedHttpSource() {
         arrayOf(
             Pair("Both", "0"),
             Pair("Manga", "2"),
-            Pair("Manhwa", "1")
-        )
+            Pair("Manhwa", "1"),
+        ),
     )
 
     private class StatusFilter : UriPartFilter(
@@ -238,8 +239,8 @@ class Mangafreak : ParsedHttpSource() {
         arrayOf(
             Pair("Both", "0"),
             Pair("Completed", "1"),
-            Pair("Ongoing", "2")
-        )
+            Pair("Ongoing", "2"),
+        ),
     )
 
     private open class UriPartFilter(displayName: String, private val vals: Array<Pair<String, String>>) :

@@ -101,7 +101,7 @@ class Kumanga : HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val jsonResult = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val jsonResult = json.parseToJsonElement(response.body.string()).jsonObject
 
         val mangaList = jsonResult["contents"]!!.jsonArray
             .map { jsonEl -> parseMangaFromJson(jsonEl.jsonObject) }
@@ -142,7 +142,7 @@ class Kumanga : HttpSource() {
             name = it.text()
             date_upload = parseChapterDate(it.attr("title"))
         }
-        scanlator = element.select("span.pull-right.greenSpan")?.text()
+        scanlator = element.select("span.pull-right.greenSpan").text()
     }
 
     override fun chapterListParse(response: Response): List<SChapter> = mutableListOf<SChapter>().apply {
@@ -164,7 +164,9 @@ class Kumanga : HttpSource() {
                 document.select(chapterSelector()).map { add(chapterFromElement(it)) }
                 page++
             }
-        } else throw Exception("No fue posible obtener los capítulos")
+        } else {
+            throw Exception("No fue posible obtener los capítulos")
+        }
     }
 
     override fun pageListParse(response: Response): List<Page> {
@@ -210,6 +212,7 @@ class Kumanga : HttpSource() {
                         .filter { genre -> genre.state }
                         .forEach { genre -> url.addQueryParameter("category_filter[]", genre.id) }
                 }
+                else -> {}
             }
         }
 
@@ -223,7 +226,7 @@ class Kumanga : HttpSource() {
         Filter.Separator(),
         StatusList(getStatusList()),
         Filter.Separator(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private class Type(name: String, val id: String) : Filter.CheckBox(name)
@@ -240,13 +243,13 @@ class Kumanga : HttpSource() {
         Type("Manhwa", "2"),
         Type("Manhua", "3"),
         Type("One shot", "4"),
-        Type("Doujinshi", "5")
+        Type("Doujinshi", "5"),
     )
 
     private fun getStatusList() = listOf(
         Status("Activo", "1"),
         Status("Finalizado", "2"),
-        Status("Inconcluso", "3")
+        Status("Inconcluso", "3"),
     )
 
     private fun getGenreList() = listOf(
@@ -297,6 +300,6 @@ class Kumanga : HttpSource() {
         Genre("Vampiros", "42"),
         Genre("Vida escolar", "43"),
         Genre("Yaoi", "44"),
-        Genre("Yuri", "45")
+        Genre("Yuri", "45"),
     )
 }

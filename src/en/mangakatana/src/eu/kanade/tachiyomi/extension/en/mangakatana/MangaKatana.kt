@@ -44,7 +44,7 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
     override val client: OkHttpClient = network.cloudflareClient.newBuilder().addNetworkInterceptor { chain ->
         val originalResponse = chain.proceed(chain.request())
         if (originalResponse.headers("Content-Type").contains("application/octet-stream")) {
-            val orgBody = originalResponse.body!!.bytes()
+            val orgBody = originalResponse.body.bytes()
             val extension = chain.request().url.toString().substringAfterLast(".")
             val newBody = orgBody.toResponseBody("image/$extension".toMediaTypeOrNull())
             originalResponse.newBuilder()
@@ -62,9 +62,9 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
     override fun latestUpdatesSelector() = "div#book_list > div.item"
 
     override fun latestUpdatesFromElement(element: Element) = SManga.create().apply {
-        setUrlWithoutDomain(element.selectFirst("div.text > h3 > a").attr("href"))
-        title = element.selectFirst("div.text > h3 > a").ownText()
-        thumbnail_url = element.selectFirst("img").attr("abs:src")
+        setUrlWithoutDomain(element.selectFirst("div.text > h3 > a")!!.attr("href"))
+        title = element.selectFirst("div.text > h3 > a")!!.ownText()
+        thumbnail_url = element.selectFirst("img")!!.attr("abs:src")
     }
 
     override fun latestUpdatesNextPageSelector() = "a.next.page-numbers"
@@ -122,6 +122,7 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
                             else -> url.addQueryParameter("chapters", filter.state.trim())
                         }
                     }
+                    else -> {}
                 }
             }
             return GET(url.toString(), headers)
@@ -141,7 +142,7 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
             val document = response.asJsoup()
             val manga = SManga.create().apply {
                 thumbnail_url = parseThumbnail(document)
-                title = document.select("h1.heading").first().text()
+                title = document.select("h1.heading").first()!!.text()
             }
             manga.setUrlWithoutDomain(response.request.url.toString())
             MangasPage(listOf(manga), false)
@@ -238,15 +239,15 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
         StatusFilter(),
         Filter.Separator(),
         Filter.Header("Input -1 to search for only oneshots"),
-        ChaptersFilter()
+        ChaptersFilter(),
     )
 
     private class TypeFilter : UriPartFilter(
         "Text search by",
         arrayOf(
             Pair("Title", "book_name"),
-            Pair("Author", "author")
-        )
+            Pair("Author", "author"),
+        ),
     )
 
     private class Genre(val id: String, name: String) : Filter.TriState(name)
@@ -310,8 +311,8 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
         "Genre inclusion mode",
         arrayOf(
             Pair("And", "and"),
-            Pair("Or", "or")
-        )
+            Pair("Or", "or"),
+        ),
     )
 
     private class ChaptersFilter : Filter.Text("Minimum Chapters")
@@ -322,8 +323,8 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
             Pair("Latest update", "latest"),
             Pair("New manga", "new"),
             Pair("A-Z", "az"),
-            Pair("Number of chapters", "numc")
-        )
+            Pair("Number of chapters", "numc"),
+        ),
     )
 
     private class StatusFilter : UriPartFilter(
@@ -332,8 +333,8 @@ class MangaKatana : ConfigurableSource, ParsedHttpSource() {
             Pair("All", ""),
             Pair("Cancelled", "0"),
             Pair("Ongoing", "1"),
-            Pair("Completed", "2")
-        )
+            Pair("Completed", "2"),
+        ),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :

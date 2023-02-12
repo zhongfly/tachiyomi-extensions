@@ -1,23 +1,13 @@
 package eu.kanade.tachiyomi.extension.fr.japscan
 
-import android.annotation.SuppressLint
 import android.app.Application
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
+import android.util.Base64
 import android.util.Log
-import android.view.View
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -33,23 +23,17 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.CyclicBarrier
 
 class Japscan : ConfigurableSource, ParsedHttpSource() {
 
@@ -69,79 +53,9 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    internal class JsObject(private val latch: CountDownLatch, var width: Int = 0, var height: Int = 0) {
-        @JavascriptInterface
-        fun passSize(widthjs: Int, ratio: Float) {
-            Log.d("japscan", "wvsc js returned $widthjs, $ratio")
-            width = widthjs
-            height = (width.toFloat() / ratio).toInt()
-            latch.countDown()
-        }
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    override val client: OkHttpClient = network.cloudflareClient.newBuilder().addInterceptor { chain ->
-        val indicator = "&wvsc"
-        val cleanupjs = "var checkExist=setInterval(function(){if(document.getElementsByTagName('CNV-VV').length){clearInterval(checkExist);var e=document.body,a=e.children;for(e.appendChild(document.getElementsByTagName('CNV-VV')[0]);'CNV-VV'!=a[0].tagName;)e.removeChild(a[0]);for(var t of[].slice.call(a[0].all_canvas))t.style.maxWidth='100%';window.android.passSize(a[0].all_canvas[0].width,a[0].all_canvas[0].width/a[0].all_canvas[0].height)}},100);"
-        val request = chain.request()
-        val url = request.url.toString()
-
-        val newRequest = request.newBuilder()
-            .url(url.substringBefore(indicator))
-            .build()
-        val response = chain.proceed(newRequest)
-        if (!url.endsWith(indicator)) return@addInterceptor response
-        // Webview screenshotting code
-        val handler = Handler(Looper.getMainLooper())
-        val latch = CountDownLatch(1)
-        var webView: WebView? = null
-        var height = 0
-        var width = 0
-        val jsinterface = JsObject(latch)
-        Log.d("japscan", "init wvsc")
-        handler.post {
-            val webview = WebView(Injekt.get<Application>())
-            webView = webview
-            webview.settings.javaScriptEnabled = true
-            webview.settings.domStorageEnabled = true
-            webview.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-            webview.settings.useWideViewPort = false
-            webview.settings.loadWithOverviewMode = false
-            webview.settings.userAgentString = webview.settings.userAgentString.replace("Mobile", "eliboM").replace("Android", "diordnA")
-            webview.addJavascriptInterface(jsinterface, "android")
-            var retries = 1
-            webview.webChromeClient = object : WebChromeClient() {
-                @SuppressLint("NewApi")
-                override fun onProgressChanged(view: WebView, progress: Int) {
-                    if (progress == 100 && retries--> 0) {
-                        Log.d("japscan", "wvsc loading finished")
-                        view.evaluateJavascript(cleanupjs) {}
-                    }
-                }
-            }
-            webview.loadUrl(url.replace("&wvsc", ""))
-        }
-
-        latch.await()
-        width = jsinterface.width
-        height = jsinterface.height
-        // webView!!.isDrawingCacheEnabled = true
-
-        webView!!.measure(width, height)
-        webView!!.layout(0, 0, width, height)
-        Thread.sleep(350)
-
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        webView!!.draw(canvas)
-
-        // val bitmap: Bitmap = webView!!.drawingCache
-        val output = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-        val rb = output.toByteArray().toResponseBody("image/png".toMediaTypeOrNull())
-        handler.post { webView!!.destroy() }
-        response.newBuilder().body(rb).build()
-    }.build()
+    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
+        .rateLimit(1, 2)
+        .build()
 
     companion object {
         val dateFormat by lazy {
@@ -173,11 +87,11 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
 
     override fun popularMangaNextPageSelector(): String? = null
 
-    override fun popularMangaSelector() = "#top_mangas_week li > span"
+    override fun popularMangaSelector() = "#top_mangas_week li"
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        element.select("a").first().let {
+        element.select("a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.text()
             manga.thumbnail_url = "$baseUrl/imgs/${it.attr("href").replace(Regex("/$"),".jpg").replace("manga","mangas")}".lowercase(Locale.ROOT)
@@ -203,7 +117,7 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
 
     override fun latestUpdatesNextPageSelector(): String? = null
 
-    override fun latestUpdatesSelector() = "#chapters > div > h3.text-truncate"
+    override fun latestUpdatesSelector() = "#chapters h3.text-truncate, #chapters_list h3.text-truncate"
 
     override fun latestUpdatesFromElement(element: Element): SManga = popularMangaFromElement(element)
 
@@ -216,6 +130,7 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
                 when (filter) {
                     is TextField -> uri.appendPath(((page - 1) + filter.state.toInt()).toString())
                     is PageList -> uri.appendPath(((page - 1) + filter.values[filter.state]).toString())
+                    else -> {}
                 }
             }
             return GET(uri.toString(), headers)
@@ -232,14 +147,14 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
                 val searchResponse = client.newCall(searchRequest).execute()
 
                 if (!searchResponse.isSuccessful) {
-                    throw Exception("Unexpected code ${searchResponse.code}")
+                    throw Exception("Code ${searchResponse.code} inattendu")
                 }
 
-                val jsonResult = json.parseToJsonElement(searchResponse.body!!.string()).jsonArray
+                val jsonResult = json.parseToJsonElement(searchResponse.body.string()).jsonArray
 
                 if (jsonResult.isEmpty()) {
                     Log.d("japscan", "Search not returning anything, using duckduckgo")
-                    throw Exception("No data")
+                    throw Exception("Pas de données")
                 }
 
                 return searchRequest
@@ -259,7 +174,7 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage {
         if ("live-search" in response.request.url.toString()) {
-            val jsonResult = json.parseToJsonElement(response.body!!.string()).jsonArray
+            val jsonResult = json.parseToJsonElement(response.body.string()).jsonArray
 
             val mangaList = jsonResult.map { jsonEl -> searchMangaFromJson(jsonEl.jsonObject) }
 
@@ -292,12 +207,13 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
     }
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div#main > .card > .card-body").first()
+        val infoElement = document.selectFirst("#main .card-body")!!
 
         val manga = SManga.create()
-        manga.thumbnail_url = "$baseUrl/${infoElement.select(".d-flex > div.m-2:eq(0) > img").attr("src")}"
+        manga.thumbnail_url = infoElement.select("img").attr("abs:src")
 
-        infoElement.select(".d-flex > div.m-2:eq(1) > p.mb-2").forEachIndexed { _, el ->
+        val infoRows = infoElement.select(".row, .d-flex")
+        infoRows.select("p").forEach { el ->
             when (el.select("span").text().trim()) {
                 "Auteur(s):" -> manga.author = el.text().replace("Auteur(s):", "").trim()
                 "Artiste(s):" -> manga.artist = el.text().replace("Artiste(s):", "").trim()
@@ -307,7 +223,7 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
                 }
             }
         }
-        manga.description = infoElement.select("> p").text().orEmpty()
+        manga.description = infoElement.select("div:contains(Synopsis) + p").text().orEmpty()
 
         return manga
     }
@@ -324,13 +240,13 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
     // Those have a span.badge "SPOILER" or "RAW". The additional pseudo selector makes sure to exclude these from the chapter list.
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlElement = element.select("a").first()
+        val urlElement = element.selectFirst("a")!!
 
         val chapter = SChapter.create()
         chapter.setUrlWithoutDomain(urlElement.attr("href"))
         chapter.name = urlElement.ownText()
         // Using ownText() doesn't include childs' text, like "VUS" or "RAW" badges, in the chapter name.
-        chapter.date_upload = element.select("> span").text().trim().let { parseChapterDate(it) }
+        chapter.date_upload = element.selectFirst("span")!!.text().trim().let { parseChapterDate(it) }
         return chapter
     }
 
@@ -342,67 +258,62 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
         }
     }
 
+    private val decodingStringsRe: Regex = Regex("""'([\dA-Z]{62})'""", RegexOption.IGNORE_CASE)
+
+    private val sortedLookupString: List<Char> = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toCharArray().toList()
+
     override fun pageListParse(document: Document): List<Page> {
-        // no webview screenshot needed anymore :
-        // document.getElementsByTag("option").mapIndexed { i, it -> Page(i, "", baseUrl + it.attr("value") + "&wvsc") }
+        /*
+            JapScan stores chapter metadata in a `#data` element, and in the `data-data` attribute.
 
-        val zjsurl = document.getElementsByTag("script").first { it.attr("src").contains("zjs", ignoreCase = true) }.attr("src")
+            This data is scrambled base64, and to unscramble it this code searches in the ZJS for
+            two strings of length 62 (base64 minus `+` and `/`), creating a character map.
+
+            Since figuring out how to properly map characters would be more effort than I want to
+            put in, this just flips around the charsets if the first attempt didn't succeed.
+         */
+        val zjsurl = document.getElementsByTag("script").first {
+            it.attr("src").contains("zjs", ignoreCase = true)
+        }.attr("src")
         Log.d("japscan", "ZJS at $zjsurl")
-        val zjs = client.newCall(GET(baseUrl + zjsurl, headers)).execute().body!!.string()
-        Log.d("japscan", "webtoon, netdumping initiated")
-        val pagesElement = document.getElementById("pages")
-        val pagecount = pagesElement.getElementsByTag("option").size
-        val pages = ArrayList<Page>()
-        val handler = Handler(Looper.getMainLooper())
-        val checkNew = ArrayList<String>(pagecount)
-        var maxIter = pagecount
-        var isSinglePage = false
-        if ((zjs.lowercase(Locale.ROOT).split("new image").size - 1) == 1) {
-            isSinglePage = true
-            maxIter = 1
-        }
-        var webView: WebView? = null
-        val dummyimage = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        val dummystream = ByteArrayOutputStream()
-        dummyimage.compress(Bitmap.CompressFormat.JPEG, 100, dummystream)
-        val barrier = CyclicBarrier(2)
+        val zjs = client.newCall(GET(baseUrl + zjsurl, headers)).execute().body.string()
 
-        for (i in 0 until maxIter) {
-            handler.post {
-                if (webView == null) {
-                    val webview = WebView(Injekt.get<Application>())
-                    webView = webview
-                    webview.settings.javaScriptEnabled = true
-                    webview.settings.domStorageEnabled = true
-                    webview.settings.userAgentString = webview.settings.userAgentString.replace("Mobile", "eliboM").replace("Android", "diordnA")
-                    webview.webViewClient = object : WebViewClient() {
-                        override fun shouldInterceptRequest(
-                            view: WebView,
-                            request: WebResourceRequest
-                        ): WebResourceResponse? {
-                            if (request.url.toString().startsWith("https://cdn.statically.io/img/c.japscan.ws/") && !checkNew.contains(request.url.toString())) {
-                                checkNew.add(request.url.toString())
-                                pages.add(Page(pages.size, "", request.url.toString()))
-                                Log.d("japscan", "intercepted ${request.url}")
-                                if (pages.size == pagecount || !isSinglePage) {
-                                    barrier.await()
-                                }
-                                return WebResourceResponse("image/jpeg", "UTF-8", ByteArrayInputStream(dummystream.toByteArray()))
-                            }
-                            return super.shouldInterceptRequest(view, request)
-                        }
-                    }
-                }
-                if (isSinglePage) {
-                    webView?.loadUrl(baseUrl + document.select("li[^data-]").first().dataset()["chapter-url"])
-                } else {
-                    webView?.loadUrl(baseUrl + pagesElement.getElementsByTag("option")[i].attr("value"))
-                }
+        val stringLookupTables = decodingStringsRe.findAll(zjs).mapNotNull {
+            it.groupValues[1].takeIf {
+                it.toCharArray().sorted() == sortedLookupString
             }
-            barrier.await()
+        }.toList()
+
+        if (stringLookupTables.size != 2) {
+            throw Exception("Attendait 2 chaînes de recherche dans ZJS, a trouvé ${stringLookupTables.size}")
         }
-        handler.post { webView!!.destroy() }
-        return pages
+        Log.d("japscan", "lookup tables: $stringLookupTables")
+
+        val scrambledData = document.getElementById("data")!!.attr("data-data")
+
+        for (i in 0..1) {
+            Log.d("japscan", "descramble attempt $i")
+            val otherIndice = if (i == 0) 1 else 0
+            val lookupTable = stringLookupTables[i].zip(stringLookupTables[otherIndice]).toMap()
+            try {
+                val unscrambledData = scrambledData.map { lookupTable[it] ?: it }.joinToString("")
+                if (!unscrambledData.startsWith("ey")) {
+                    // `ey` is the Base64 representation of a curly bracket. Since we're expecting a
+                    // JSON object, we're counting this attempt as failed if it doesn't start with a
+                    // curly bracket.
+                    continue
+                }
+                val decoded = Base64.decode(unscrambledData, Base64.DEFAULT).toString(Charsets.UTF_8)
+
+                val data = json.parseToJsonElement(decoded).jsonObject
+
+                return data["imagesLink"]!!.jsonArray.mapIndexed { idx, it ->
+                    Page(idx, imageUrl = it.jsonPrimitive.content)
+                }
+            } catch (_: Throwable) {}
+        }
+
+        throw Exception("Les deux tentatives de désembrouillage ont échoué")
     }
 
     override fun imageUrlParse(document: Document): String = ""
@@ -421,13 +332,15 @@ class Japscan : ConfigurableSource, ParsedHttpSource() {
             }
             FilterList(
                 Filter.Header("Page alphabétique"),
-                PageList(pagelist.toTypedArray())
+                PageList(pagelist.toTypedArray()),
             )
-        } else FilterList(
-            Filter.Header("Page alphabétique"),
-            TextField("Page #"),
-            Filter.Header("Appuyez sur reset pour la liste")
-        )
+        } else {
+            FilterList(
+                Filter.Header("Page alphabétique"),
+                TextField("Page #"),
+                Filter.Header("Appuyez sur reset pour la liste"),
+            )
+        }
     }
 
     private var pageNumberDoc: Document? = null

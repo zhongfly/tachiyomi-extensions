@@ -174,7 +174,7 @@ class OnePieceEx : ParsedHttpSource() {
     override fun chapterListSelector() = "div.capitulos li.volume-capitulo"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
-        val mangaUrl = element.ownerDocument().location().toHttpUrlOrNull()!!
+        val mangaUrl = element.ownerDocument()!!.location().toHttpUrlOrNull()!!
 
         when (mangaUrl.queryParameter("type")!!) {
             "main" -> {
@@ -248,9 +248,9 @@ class OnePieceEx : ParsedHttpSource() {
             .build()
 
         val bypasserResponse = chain.proceed(bypasserRequest)
-        val fixedBody = bypasserResponse.body?.string().orEmpty()
+        val fixedBody = bypasserResponse.body.string()
             .replace("onepieceex-net.translate.goog", baseUrl.removePrefix("https://"))
-            .toResponseBody(bypasserResponse.body!!.contentType())
+            .toResponseBody(bypasserResponse.body.contentType())
 
         return bypasserResponse.newBuilder()
             .body(fixedBody)
@@ -270,7 +270,7 @@ class OnePieceEx : ParsedHttpSource() {
             "OPEX - DENSETSU NO SEKAI" to "https://onepieceex.net/mangareader/especiais/501/00.jpg",
             "OPEX - ESPECIAIS" to "https://onepieceex.net/mangareader/especiais/27/00.jpg",
             "ONE PIECE - ESPECIAIS DE ONE PIECE" to "https://onepieceex.net/mangareader/especiais/5/002.png",
-            "ONE PIECE - HISTÓRIAS DE CAPA" to "https://onepieceex.net/mangareader/mangas/428/00_c.jpg"
+            "ONE PIECE - HISTÓRIAS DE CAPA" to "https://onepieceex.net/mangareader/mangas/428/00_c.jpg",
         )
     }
 }

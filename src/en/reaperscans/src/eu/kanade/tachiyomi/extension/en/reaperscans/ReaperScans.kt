@@ -30,6 +30,7 @@ import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import rx.Observable
 import uy.kohesive.injekt.injectLazy
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -145,17 +146,30 @@ class ReaperScans : ParsedHttpSource() {
             element.select("img").first()?.let {
                 thumbnail_url = it.attr("abs:src")
             }
-            title = element.select("p").first().text()
+            title = element.select("p").first()!!.text()
         }
+    }
+
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        if (query.startsWith(PREFIX_ID_SEARCH)) {
+            val realUrl = "/comics/" + query.removePrefix(PREFIX_ID_SEARCH)
+            val manga = SManga.create().apply {
+                url = realUrl
+            }
+            return fetchMangaDetails(manga).map {
+                MangasPage(listOf(it.apply { url = realUrl }), false)
+            }
+        }
+        return super.fetchSearchManga(page, query, filters)
     }
 
     // Details
     override fun mangaDetailsParse(document: Document): SManga {
         return SManga.create().apply {
-            thumbnail_url = document.select("div > img").first().attr("abs:src")
-            title = document.select("h1").first().text()
+            thumbnail_url = document.select("div > img").first()!!.attr("abs:src")
+            title = document.select("h1").first()!!.text()
 
-            status = when (document.select("dt:contains(Release Status)").next().text()) {
+            status = when (document.select("dt:contains(Release Status)").next().first()!!.text()) {
                 "On hold" -> SManga.ON_HIATUS
                 "Complete" -> SManga.COMPLETED
                 "Ongoing" -> SManga.ONGOING
@@ -172,7 +186,7 @@ class ReaperScans : ParsedHttpSource() {
                 }?.let { add(it) }
             }.takeIf { it.isNotEmpty() }?.joinToString(",")
 
-            description = document.select("section > div:nth-child(1) > div > p").first().text()
+            description = document.select("section > div:nth-child(1) > div > p").first()!!.text()
         }
     }
 
@@ -187,8 +201,9 @@ class ReaperScans : ParsedHttpSource() {
         document.select(chapterListSelector()).forEach { chapters.add(chapterFromElement(it)) }
         var hasNextPage = document.selectFirst(chapterListNextPageSelector()) != null
 
-        if (!hasNextPage)
+        if (!hasNextPage) {
             return chapters
+        }
 
         val csrfToken = document.selectFirst("meta[name=csrf-token]")?.attr("content")
             ?: error("Couldn't find csrf-token")
@@ -262,13 +277,13 @@ class ReaperScans : ParsedHttpSource() {
     // Page
     override fun pageListParse(document: Document): List<Page> {
         return document.select("img.max-w-full").mapIndexed { index, element ->
-            Page(index, imageUrl = element.attr("src"))
+            Page(index, imageUrl = element.attr("abs:src"))
         }
     }
 
     // Helpers
     private inline fun <reified T> Response.parseJson(): T = use {
-        it.body?.string().orEmpty().parseJson()
+        it.body.string().parseJson()
     }
 
     private inline fun <reified T> String.parseJson(): T = json.decodeFromString(this)
@@ -317,5 +332,6 @@ class ReaperScans : ParsedHttpSource() {
 
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        const val PREFIX_ID_SEARCH = "id:"
     }
 }

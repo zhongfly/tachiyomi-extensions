@@ -15,7 +15,7 @@ class DoujinHentai : Madara(
     "DoujinHentai",
     "https://doujinhentai.net",
     "es",
-    SimpleDateFormat("d MMM. yyyy", Locale.ENGLISH)
+    SimpleDateFormat("d MMM. yyyy", Locale.ENGLISH),
 ) {
 
     override val useLoadMoreSearch = false
@@ -49,6 +49,7 @@ class DoujinHentai : Madara(
                             url.addQueryParameter("page", page.toString())
                         }
                     }
+                    else -> {}
                 }
             }
         }
@@ -70,7 +71,7 @@ class DoujinHentai : Madara(
 
     override fun getFilterList() = FilterList(
         Filter.Header("Solo funciona si la consulta está en blanco"),
-        GenreSelectFilter()
+        GenreSelectFilter(),
     )
 
     class GenreSelectFilter : UriPartFilter(
@@ -108,7 +109,7 @@ class DoujinHentai : Madara(
             Pair("Sin Censura", "sin-censura"),
             Pair("Futanari", "futanari"),
             Pair("Doble Penetracion", "doble-penetracion"),
-            Pair("Cosplay", "cosplay")
-        )
+            Pair("Cosplay", "cosplay"),
+        ),
     )
 }

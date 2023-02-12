@@ -73,30 +73,35 @@ class ComX : ParsedHttpSource() {
                             cookies.add(Cookie.parse(url, header)!!)
                         }
                         // Adds age verification cookies to access mature comics
-                        return if (url.toString().contains("/reader/")) cookies.apply {
-                            add(
-                                Cookie.Builder()
-                                    .domain(baseUrl.substringAfter("//"))
-                                    .path("/")
-                                    .name("adult")
-                                    .value(
-                                        url.toString().substringAfter("/reader/")
-                                            .substringBefore("/")
-                                    )
-                                    .build()
-                            )
-                        } else cookies
+                        return if (url.toString().contains("/reader/")) {
+                            cookies.apply {
+                                add(
+                                    Cookie.Builder()
+                                        .domain(baseUrl.substringAfter("//"))
+                                        .path("/")
+                                        .name("adult")
+                                        .value(
+                                            url.toString().substringAfter("/reader/")
+                                                .substringBefore("/"),
+                                        )
+                                        .build(),
+                                )
+                            }
+                        } else {
+                            cookies
+                        }
                     } else {
                         return mutableListOf()
                     }
                 }
-            }
+            },
         )
         .addInterceptor { chain ->
             val originalRequest = chain.request()
             val response = chain.proceed(originalRequest)
-            if (response.code == 404 && response.asJsoup().toString().contains("Protected by Batman"))
+            if (response.code == 404 && response.asJsoup().toString().contains("Protected by Batman")) {
                 throw IOException("Antibot, попробуйте пройти капчу в WebView")
+            }
             response
         }
         .build()
@@ -122,8 +127,8 @@ class ComX : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = baseUrl + element.select("img").first().attr("data-src")
-        element.select(".readed__title a").first().let {
+        manga.thumbnail_url = baseUrl + element.select("img").first()!!.attr("data-src")
+        element.select(".readed__title a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.text().split(" / ").first()
         }
@@ -148,8 +153,8 @@ class ComX : ParsedHttpSource() {
 
     override fun latestUpdatesFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = baseUrl + element.select("img").first().attr("src").replace("mini/mini", "mini/mid")
-        element.select("a.latest__title").first().let {
+        manga.thumbnail_url = baseUrl + element.select("img").first()!!.attr("src").replace("mini/mini", "mini/mid")
+        element.select("a.latest__title").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.text().split(" / ").first()
         }
@@ -168,7 +173,7 @@ class ComX : ParsedHttpSource() {
                     .add("story", query)
                     .add("search_start", page.toString())
                     .build(),
-                headers = headers
+                headers = headers,
             )
         }
         val mutableGenre = mutableListOf<String>()
@@ -176,7 +181,7 @@ class ComX : ParsedHttpSource() {
         val mutableAge = mutableListOf<String>()
         var orderBy = "rating"
         var ascEnd = "desc"
-        var sectionPub = mutableListOf<String>()
+        val sectionPub = mutableListOf<String>()
         (if (filters.isEmpty()) getFilterList() else filters).forEach { filter ->
             when (filter) {
                 is OrderBy -> {
@@ -203,6 +208,7 @@ class ComX : ParsedHttpSource() {
                         sectionPub += publisher.id
                     }
                 }
+                else -> {}
             }
         }
         val pageParameter = if (page > 1) "page/$page/" else ""
@@ -214,7 +220,7 @@ class ComX : ParsedHttpSource() {
                 .add("set_new_sort", "dle_sort_xfilter")
                 .add("set_direction_sort", "dle_direction_xfilter")
                 .build(),
-            headers = headers
+            headers = headers,
         )
     }
 
@@ -225,10 +231,10 @@ class ComX : ParsedHttpSource() {
 
     // Details
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div.page__grid").first()
+        val infoElement = document.select("div.page__grid").first()!!
 
         val ratingValue = infoElement.select(".page__activity-votes").textNodes().first().text().trim().toFloat() * 2
-        val ratingVotes = infoElement.select(".page__activity-votes span > span").first().text().trim()
+        val ratingVotes = infoElement.select(".page__activity-votes span > span").first()!!.text().trim()
         val ratingStar = when {
             ratingValue > 9.5 -> "★★★★★"
             ratingValue > 8.5 -> "★★★★✬"
@@ -242,7 +248,7 @@ class ComX : ParsedHttpSource() {
             ratingValue > 0.5 -> "✬☆☆☆☆"
             else -> "☆☆☆☆☆"
         }
-        val rawCategory = document.select(".speedbar a").last().text().trim()
+        val rawCategory = document.select(".speedbar a").last()!!.text().trim()
         val category = when (rawCategory.lowercase()) {
             "manga" -> "Манга"
             "manhwa" -> "Манхва"
@@ -256,7 +262,7 @@ class ComX : ParsedHttpSource() {
         manga.genre = category + ", " + rawAgeStop + ", " + infoElement.select(".page__tags a").joinToString { it.text() }
         manga.status = parseStatus(infoElement.select(".page__list li:contains(Статус)").text())
 
-        manga.description = infoElement.select(".page__header h1").text().replace(" / ", " | ").split(" | ").first() + "\n" + ratingStar + " " + ratingValue + " (голосов: " + ratingVotes + ")\n" + Jsoup.parse(infoElement.select(".page__text ").first().html().replace("<br>", "REPLACbR")).text().replace("REPLACbR", "\n")
+        manga.description = infoElement.select(".page__header h1").text().replace(" / ", " | ").split(" | ").first() + "\n" + ratingStar + " " + ratingValue + " (голосов: " + ratingVotes + ")\n" + Jsoup.parse(infoElement.select(".page__text ").first()!!.html().replace("<br>", "REPLACbR")).text().replace("REPLACbR", "\n")
         val src = infoElement.select(".img-wide img").attr("data-src")
         if (src.contains("://")) {
             manga.thumbnail_url = src
@@ -296,8 +302,9 @@ class ComX : ParsedHttpSource() {
             val chapter = SChapter.create()
             // title_en is full chapter name, no english name
             chapter.name = it.jsonObject["title_en"]!!.jsonPrimitive.content
-            if (chapter.name.isEmpty())
+            if (chapter.name.isEmpty()) {
                 chapter.name = it.jsonObject["title"]!!.jsonPrimitive.content
+            }
             chapter.date_upload = simpleDateFormat.parse(it.jsonObject["date"]!!.jsonPrimitive.content)?.time ?: 0L
             chapter.chapter_number = it.jsonObject["posi"]!!.jsonPrimitive.float
             chapter.setUrlWithoutDomain("/readcomix/" + data["news_id"] + "/" + it.jsonObject["id"]!!.jsonPrimitive.content + ".html")
@@ -311,11 +318,12 @@ class ComX : ParsedHttpSource() {
 
     // Pages
     override fun pageListParse(response: Response): List<Page> {
-        val html = response.body!!.string()
+        val html = response.body.string()
 
         // Comics 18+
-        if (html.contains("adult__header"))
+        if (html.contains("adult__header")) {
             throw Exception("Комикс 18+ (что-то сломалось)")
+        }
 
         val baseImgUrl = "https://img.com-x.life/comix/"
 
@@ -341,8 +349,11 @@ class ComX : ParsedHttpSource() {
         return client.newCall(pageListRequest(chapter))
             .asObservable().doOnNext { response ->
                 if (!response.isSuccessful) {
-                    if (response.code == 404 && response.asJsoup().toString().contains("Выпуск был удален по требованию правообладателя"))
-                        throw Exception("Лицензировано. Возможно может помочь авторизация через WebView") else throw Exception("HTTP error ${response.code}")
+                    if (response.code == 404 && response.asJsoup().toString().contains("Выпуск был удален по требованию правообладателя")) {
+                        throw Exception("Лицензировано. Возможно может помочь авторизация через WebView")
+                    } else {
+                        throw Exception("HTTP error ${response.code}")
+                    }
                 }
             }
             .map { response ->
@@ -364,7 +375,7 @@ class ComX : ParsedHttpSource() {
     private class OrderBy : Filter.Sort(
         "Сортировать по",
         arrayOf("Дате", "Популярности", "Посещаемости", "Комментариям", "Алфавиту"),
-        Selection(1, false)
+        Selection(1, false),
     )
 
     private class CheckFilter(name: String, val id: String) : Filter.CheckBox(name)
@@ -384,7 +395,7 @@ class ComX : ParsedHttpSource() {
 
     private fun getAgeList() = listOf(
         CheckFilter("Для всех", "1"),
-        CheckFilter("18+", "2")
+        CheckFilter("18+", "2"),
     )
 
     private fun getTypeList() = listOf(

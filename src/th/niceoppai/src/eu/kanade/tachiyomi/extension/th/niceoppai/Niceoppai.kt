@@ -70,8 +70,11 @@ class Niceoppai : ParsedHttpSource() {
         val orderByState = if (filters.list.first().state != null) filters.first().state.toString().toInt() else 0
         val orderByString = orderByFilterOptionsValues[orderByState]
 
-        return if (isOrderByFilter) GET("$baseUrl/manga_list/all/any/$orderByString/$page", headers)
-        else GET("$baseUrl/manga_list/search/$query/$orderByString/$page", headers)
+        return if (isOrderByFilter) {
+            GET("$baseUrl/manga_list/all/any/$orderByString/$page", headers)
+        } else {
+            GET("$baseUrl/manga_list/search/$query/$orderByString/$page", headers)
+        }
     }
     override fun searchMangaSelector(): String = popularMangaSelector()
     override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
@@ -87,7 +90,6 @@ class Niceoppai : ParsedHttpSource() {
                     }
 
                 MangasPage(mangas, false)
-
             }
     }
 
@@ -98,8 +100,8 @@ class Niceoppai : ParsedHttpSource() {
         else -> SManga.UNKNOWN
     }
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div.det").first()
-        val titleElement = document.select("h1.ttl").first()
+        val infoElement = document.select("div.det").first()!!
+        val titleElement = document.select("h1.ttl").first()!!
 
         return SManga.create().apply {
             title = titleElement.text()
@@ -107,8 +109,8 @@ class Niceoppai : ParsedHttpSource() {
             artist = author
             status = getStatus(infoElement.select("p")[9].ownText().replace(": ", ""))
             genre = infoElement.select("p")[5].select("a").joinToString { it.text() }
-            description = infoElement.select("p").first().ownText().replace(": ", "")
-            thumbnail_url = document.select("div.mng_ifo div.cvr_ara img").first().attr("abs:src")
+            description = infoElement.select("p").first()!!.ownText().replace(": ", "")
+            thumbnail_url = document.select("div.mng_ifo div.cvr_ara img").first()!!.attr("abs:src")
             initialized = true
         }
     }
@@ -171,6 +173,7 @@ class Niceoppai : ParsedHttpSource() {
             else -> dateFormat.tryParse(date)
         }
     }
+
     // Parses dates in this form:
     // 21 horas ago
     private fun parseRelativeDate(date: String): Long {
@@ -219,7 +222,7 @@ class Niceoppai : ParsedHttpSource() {
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()
-        val listPage = document.select("ul.pgg li a")
+        val listPage = document.select("ul.pgg li a").toList()
             .filter { it.text() != "Next" && it.text() != "Last" }
             .map { it.select("a").attr("href") }
             .distinct()
@@ -265,24 +268,22 @@ class Niceoppai : ParsedHttpSource() {
         throw UnsupportedOperationException("Not used")
 
     // Filter
-    protected open val orderByFilterTitle: String = "Order By เรียกตาม"
+    private val orderByFilterTitle: String = "Order By เรียกตาม"
     private val orderByFilterOptions: Array<String> = arrayOf("Name (A-Z)", "Name (Z-A)", "Last Updated", "Oldest Updated", "Most Popular", "Most Popular (Weekly)", "Most Popular (Monthly)", "Least Popular", "Last Added", "Early Added", "Top Rating", "Lowest Rating")
     private val orderByFilterOptionsValues: Array<String> = arrayOf("name-az", "name-za", "last-updated", "oldest-updated", "most-popular", "most-popular-weekly", "most-popular-monthly", "least-popular", "last-added", "early-added", "top-rating", "lowest-rating")
-    protected class OrderByFilter(title: String, options: List<Pair<String, String>>, state: Int = 0) : UriPartFilter(title, options.toTypedArray(), state)
+    private class OrderByFilter(title: String, options: List<Pair<String, String>>, state: Int = 0) : UriPartFilter(title, options.toTypedArray(), state)
     override fun getFilterList(): FilterList {
         val filters = mutableListOf(
             OrderByFilter(
                 orderByFilterTitle,
                 orderByFilterOptions.zip(orderByFilterOptionsValues),
-                0
-            )
+                0,
+            ),
         )
 
         return FilterList(filters)
     }
-    open class UriPartFilter(displayName: String, private val vals: Array<Pair<String, String>>, state: Int = 0) : Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray(), state) {
-        fun toUriPart() = vals[state].second
-    }
+    open class UriPartFilter(displayName: String, vals: Array<Pair<String, String>>, state: Int = 0) : Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray(), state)
 }
 
 class WordSet(private vararg val words: String) {

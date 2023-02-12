@@ -47,7 +47,7 @@ class MangaDoom : HttpSource() {
             document.select(popularMangaSelector).map {
                 mangaFromMangaListElement(it)
             },
-            paginationHasNext(document)
+            paginationHasNext(document),
         )
     }
 
@@ -76,7 +76,7 @@ class MangaDoom : HttpSource() {
 
         return MangasPage(
             mangaUpdates.map { mangaFromMangaTitleElement(it) },
-            paginationHasNext(document)
+            paginationHasNext(document),
         )
     }
 
@@ -91,14 +91,14 @@ class MangaDoom : HttpSource() {
     override fun mangaDetailsParse(response: Response): SManga {
         val document = response.asJsoup()
 
-        val innerContentElement = document.select("div.content-inner.inner-page").first()
-        val dlElement = innerContentElement.select("div.col-md-8 > dl").first()
+        val innerContentElement = document.select("div.content-inner.inner-page").first()!!
+        val dlElement = innerContentElement.select("div.col-md-8 > dl").first()!!
 
         return SManga.create().apply {
             this.url = response.request.url.toString()
 
             this.title = innerContentElement
-                .select("h5.widget-heading:matchText").first().text()
+                .select("h5.widget-heading:matchText").first()!!.text()
             this.thumbnail_url = innerContentElement
                 .select("div.col-md-4 > img").first()?.attr("src")
 
@@ -132,7 +132,6 @@ class MangaDoom : HttpSource() {
      * This function is used for parsing the html manga description into a String
      */
     private fun descriptionProcessor(descriptionRootNode: Node): String? {
-
         val descriptionStringBuilder = StringBuilder()
 
         /**
@@ -185,13 +184,11 @@ class MangaDoom : HttpSource() {
 
         return chapters.map {
             SChapter.create().apply {
-                this.name = it.select("span.val").first().ownText()
-                this.url = it.select("a").first().attr("href")
+                this.name = it.select("span.val").first()!!.ownText()
+                this.url = it.select("a").first()!!.attr("href")
                 this.chapter_number = this.url.split("/").last().replace(Regex("[^0-9.]"), "").toFloat()
 
-                val calculatedDate = it.select("span.date").first().ownText()?.let {
-                    parseDate(it)
-                }
+                val calculatedDate = parseDate(it.select("span.date").first()!!.ownText())
 
                 if (calculatedDate != null) {
                     this.date_upload = calculatedDate
@@ -209,7 +206,7 @@ class MangaDoom : HttpSource() {
         date: Int = this.get(Calendar.DATE),
         hourOfDay: Int = this.get(Calendar.HOUR_OF_DAY),
         minute: Int = this.get(Calendar.MINUTE),
-        second: Int = this.get(Calendar.SECOND)
+        second: Int = this.get(Calendar.SECOND),
     ) {
         this.set(Calendar.MILLISECOND, 0)
         this.set(year, month, date, hourOfDay, minute, second)
@@ -223,7 +220,6 @@ class MangaDoom : HttpSource() {
      * days, months, years ago. This leads to a lot of inaccuracy, but it's the best we have.
      */
     private fun parseDate(inputString: String): Long? {
-
         val timeDifference = regexFirstNumberPattern.find(inputString)?.let {
             it.value.toInt() * (-1)
         }
@@ -320,7 +316,7 @@ class MangaDoom : HttpSource() {
         Pair("manga-name", ""),
         Pair("author-name", ""),
         Pair("artist-name", ""),
-        Pair("status", "both")
+        Pair("status", "both"),
     )
 
     /**
@@ -358,7 +354,7 @@ class MangaDoom : HttpSource() {
         return POST(
             baseUrl + underlyingSearchMangaPath,
             searchHeaders,
-            requestBodyBuilder.build()
+            requestBodyBuilder.build(),
         )
     }
 
@@ -371,7 +367,7 @@ class MangaDoom : HttpSource() {
             document.select(searchResultSelector).map {
                 mangaFromMangaListElement(it)
             },
-            false
+            false,
         )
     }
 
@@ -383,7 +379,7 @@ class MangaDoom : HttpSource() {
         AuthorTextFilter(),
         ArtistTextFilter(),
         StatusFilter(),
-        genreManager.getGenreGroupFilterOrPlaceholder()
+        genreManager.getGenreGroupFilterOrPlaceholder(),
     )
 
     private class TypeFilter : FormBodySelectFilter(
@@ -393,9 +389,9 @@ class MangaDoom : HttpSource() {
             Pair("japanese", "Japanese Manga"),
             Pair("korean", "Korean Manhwa"),
             Pair("chinese", "Chinese Manhua"),
-            Pair("all", "All")
+            Pair("all", "All"),
         ),
-        3
+        3,
     )
 
     private class AuthorTextFilter : Filter.Text("Author"), FormBodyFilter {
@@ -416,9 +412,9 @@ class MangaDoom : HttpSource() {
         arrayOf(
             Pair("ongoing", "Ongoing"),
             Pair("completed", "Completed"),
-            Pair("both", "Both")
+            Pair("both", "Both"),
         ),
-        2
+        2,
     )
 
     /**
@@ -474,7 +470,7 @@ class MangaDoom : HttpSource() {
                 GenreGroupFilter(
                     genreFiltersContent.map { singleGenreContent ->
                         GenreFilter(singleGenreContent.first, singleGenreContent.second)
-                    }
+                    },
                 )
 
             val genreGroupFromVar = genreFiltersContent?.let { genreList ->
@@ -497,14 +493,13 @@ class MangaDoom : HttpSource() {
          * new asynchronous web request.
          */
         private fun generateFilterContent(): List<Pair<String, String>>? {
-            fun responseToGenreFilterContentPair(genreResponse: Response):
-                List<Pair<String, String>> {
+            fun responseToGenreFilterContentPair(genreResponse: Response): List<Pair<String, String>> {
                 val document = genreResponse.asJsoup()
 
                 return document.select("ul.manga-cat > li").map {
                     Pair(
-                        it.select("span.fa").first().attr("data-id"),
-                        it.ownText()
+                        it.select("span.fa").first()!!.attr("data-id"),
+                        it.ownText(),
                     )
                 }
             }
@@ -513,8 +508,8 @@ class MangaDoom : HttpSource() {
                 .newCall(
                     GET(
                         url = baseUrl + advancedSearchPagePath,
-                        cache = CacheControl.FORCE_CACHE
-                    )
+                        cache = CacheControl.FORCE_CACHE,
+                    ),
                 ).execute()
 
             return if (genreResponse.code == 200 &&
@@ -525,8 +520,8 @@ class MangaDoom : HttpSource() {
                 client.newCall(
                     GET(
                         url = baseUrl + advancedSearchPagePath,
-                        cache = CacheControl.FORCE_NETWORK
-                    )
+                        cache = CacheControl.FORCE_NETWORK,
+                    ),
                 ).enqueue(
                     object : Callback {
                         override fun onFailure(call: Call, e: IOException) {
@@ -537,7 +532,7 @@ class MangaDoom : HttpSource() {
                             genreFilterContentFrom = response.receivedResponseAtMillis
                             genreFiltersContent = responseToGenreFilterContentPair(response)
                         }
-                    }
+                    },
                 )
                 null
             }
@@ -551,12 +546,12 @@ class MangaDoom : HttpSource() {
         displayName: String,
         val payloadParam: String,
         val vals: Array<Pair<String, String>>,
-        defaultValue: Int = 0
+        defaultValue: Int = 0,
     ) :
         Filter.Select<String>(
             displayName,
             vals.map { it.second }.toTypedArray(),
-            defaultValue
+            defaultValue,
         ),
         FormBodyFilter {
         override fun addToFormParameters(formParameters: MutableMap<String, String>) {
@@ -576,7 +571,7 @@ class MangaDoom : HttpSource() {
      * The last step for parsing popular manga and search results (from jsoup element to [SManga]
      */
     private fun mangaFromMangaListElement(mangaListElement: Element): SManga {
-        val titleElement = mangaListElement.select("div.col-md-4 > a").first()
+        val titleElement = mangaListElement.select("div.col-md-4 > a").first()!!
         return mangaFromMangaTitleElement(titleElement)
     }
 
@@ -587,7 +582,7 @@ class MangaDoom : HttpSource() {
         .apply {
             this.title = mangaTitleElement.attr("title")
             this.setUrlWithoutDomain(mangaTitleElement.attr("href"))
-            this.thumbnail_url = mangaTitleElement.select("img").first()
+            this.thumbnail_url = mangaTitleElement.select("img").first()!!
                 .attr("src")
         }
 }

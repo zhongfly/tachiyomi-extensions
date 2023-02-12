@@ -64,7 +64,7 @@ open class SimplyHentai(override val lang: String) : ConfigurableSource, HttpSou
                         thumbnail_url = it.preview.sizes.thumb
                     }
                 },
-                pagination.next != null
+                pagination.next != null,
             )
         }
 
@@ -109,7 +109,7 @@ open class SimplyHentai(override val lang: String) : ConfigurableSource, HttpSou
                     is CharactersFilter -> filter.value?.forEachIndexed { idx, tag ->
                         appendQueryParameter("filter[characters][$idx]", tag.trim())
                     }
-                    else -> Unit
+                    else -> {}
                 }
             }
             GET(build().toString(), headers)
@@ -125,7 +125,7 @@ open class SimplyHentai(override val lang: String) : ConfigurableSource, HttpSou
                         thumbnail_url = it.`object`.preview.sizes.thumb
                     }
                 },
-                pagination.next != null
+                pagination.next != null,
             )
         }
 
@@ -216,7 +216,7 @@ open class SimplyHentai(override val lang: String) : ConfigurableSource, HttpSou
         get() = preferences.getString("blacklist", "")!!
 
     private inline fun <reified T> Response.decode() =
-        json.decodeFromString<T>(body!!.string())
+        json.decodeFromString<T>(body.string())
 
     override fun imageUrlParse(response: Response) =
         throw UnsupportedOperationException("Not used")

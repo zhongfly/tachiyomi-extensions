@@ -27,6 +27,7 @@ class Ikuhentai : ParsedHttpSource() {
     override fun latestUpdatesRequest(page: Int): Request {
         return GET("$baseUrl/page/$page?s&post_type=wp-manga&m_orderby=latest", headers)
     }
+
     //    LIST SELECTOR
     override fun popularMangaSelector() = "div.c-tabs-item__content"
     override fun latestUpdatesSelector() = popularMangaSelector()
@@ -43,8 +44,8 @@ class Ikuhentai : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = element.select("div.col-4.col-sm-2.col-md-2 > div > a > img").attr("data-src")
-        element.select("div.tab-thumb > a").first().let {
+        manga.thumbnail_url = element.select("img").attr("data-src")
+        element.select("div.tab-thumb > a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.attr("title")
         }
@@ -99,6 +100,7 @@ class Ikuhentai : ParsedHttpSource() {
                     url.addQueryParameter("m_orderby", orderBy)
                 }
                 is TextField -> url.addQueryParameter(filter.key, filter.state)
+                else -> {}
             }
         }
 
@@ -108,11 +110,11 @@ class Ikuhentai : ParsedHttpSource() {
     // max 200 results
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div.site-content").first()
+        val infoElement = document.select("div.site-content").first()!!
 
         val manga = SManga.create()
-        manga.author = infoElement.select("div.author-content")?.text()
-        manga.artist = infoElement.select("div.artist-content")?.text()
+        manga.author = infoElement.select("div.author-content").text()
+        manga.artist = infoElement.select("div.artist-content").text()
 
         val genres = mutableListOf<String>()
         infoElement.select("div.genres-content a").forEach { element ->
@@ -122,14 +124,13 @@ class Ikuhentai : ParsedHttpSource() {
         manga.genre = genres.joinToString(", ")
         manga.status = parseStatus(infoElement.select("div.post-status > div:nth-child(2) > div.summary-content").text())
 
-        manga.description = document.select("div.description-summary")?.text()
+        manga.description = document.select("div.description-summary").text()
         manga.thumbnail_url = document.select("div.summary_image > a > img").attr("data-src")
 
         return manga
     }
 
     private fun parseStatus(element: String): Int = when {
-
         element.lowercase().contains("ongoing") -> SManga.ONGOING
         element.lowercase().contains("completado") -> SManga.COMPLETED
         else -> SManga.UNKNOWN
@@ -138,7 +139,7 @@ class Ikuhentai : ParsedHttpSource() {
     override fun chapterListSelector() = "li.wp-manga-chapter"
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlElement = element.select("a").first()
+        val urlElement = element.select("a").first()!!
         var url = urlElement.attr("href")
         url = url.replace("/p/1", "")
         url += "?style=list"
@@ -182,6 +183,7 @@ class Ikuhentai : ParsedHttpSource() {
         }.build()
         return GET(page.imageUrl!!, imgHeader)
     }
+
     //    private class Status : Filter.TriState("Completed")
     private class TextField(name: String, val key: String) : Filter.Text(name)
     private class SortBy : UriPartFilter(
@@ -193,8 +195,8 @@ class Ikuhentai : ParsedHttpSource() {
             Pair("Calificación", "rating"),
             Pair("Tendencia", "trending"),
             Pair("Más visto", "views"),
-            Pair("Nuevo", "new-manga")
-        )
+            Pair("Nuevo", "new-manga"),
+        ),
     )
 
     private class Genre(name: String, val id: String = name) : Filter.TriState(name)
@@ -208,13 +210,13 @@ class Ikuhentai : ParsedHttpSource() {
         TextField("Año de publicación", "release"),
         SortBy(),
         StatusList(getStatusList()),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
     private fun getStatusList() = listOf(
         Status("Completado", "end"),
         Status("En emisión", "on-going"),
         Status("Cancelado", "canceled"),
-        Status("Pausado", "on-hold")
+        Status("Pausado", "on-hold"),
     )
     private fun getGenreList() = listOf(
         Genre("Ahegao", "ahegao"),
@@ -259,7 +261,7 @@ class Ikuhentai : ParsedHttpSource() {
         Genre("Tentáculos", "tentaculos"),
         Genre("Virgen", "virgen"),
         Genre("Yaoi", "yaoi"),
-        Genre("Yuri", "yuri")
+        Genre("Yuri", "yuri"),
     )
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :
         Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray()) {

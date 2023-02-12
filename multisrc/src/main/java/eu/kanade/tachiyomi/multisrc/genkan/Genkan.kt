@@ -63,11 +63,11 @@ open class Genkan(
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        element.select("a.list-title").first().let {
+        element.select("a.list-title").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.text()
         }
-        manga.thumbnail_url = styleToUrl(element.select("a.media-content").first())
+        manga.thumbnail_url = styleToUrl(element.select("a.media-content").first()!!)
         return manga
     }
 
@@ -98,11 +98,11 @@ open class Genkan(
 
     protected var countryOfOriginSelector = ".card.mt-2 .list-item:contains(Country of Origin) .no-wrap"
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
-        title = document.select("div#content h5").first().text()
+        title = document.select("div#content h5").first()!!.text()
         description = document.select("div.col-lg-9").text().substringAfter("Description ").substringBefore(" Volume")
-        thumbnail_url = styleToUrl(document.select("div.media a").first())
+        thumbnail_url = styleToUrl(document.select("div.media a").first()!!)
         genre = listOfNotNull(
-            document.selectFirst(countryOfOriginSelector)?.let { countryOfOriginToSeriesType(it.text()) }
+            document.selectFirst(countryOfOriginSelector)?.let { countryOfOriginToSeriesType(it.text()) },
         ).joinToString()
     }
 
@@ -110,7 +110,6 @@ open class Genkan(
 
     override fun chapterFromElement(element: Element): SChapter {
         return SChapter.create().apply {
-
             val urlElement = element.select("a.item-author")
             val chapNum = urlElement.attr("href").split("/").last()
 
@@ -120,7 +119,7 @@ open class Genkan(
             } else {
                 "Ch. $chapNum: ${urlElement.text()}"
             }
-            date_upload = parseChapterDate(element.select("a.item-company").first().text()) ?: 0
+            date_upload = parseChapterDate(element.select("a.item-company").first()!!.text()) ?: 0
         }
     }
 
@@ -167,7 +166,7 @@ open class Genkan(
     override fun pageListParse(document: Document): List<Page> {
         val pages = mutableListOf<Page>()
 
-        val allImages = document.select("div#pages-container + script").first().data()
+        val allImages = document.select("div#pages-container + script").first()!!.data()
             .substringAfter("[").substringBefore("];")
             .replace(Regex("""["\\]"""), "")
             .split(",")

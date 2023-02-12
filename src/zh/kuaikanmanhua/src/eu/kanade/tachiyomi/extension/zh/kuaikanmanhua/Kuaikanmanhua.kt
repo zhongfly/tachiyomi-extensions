@@ -23,8 +23,6 @@ import okhttp3.Request
 import okhttp3.Response
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class Kuaikanmanhua : HttpSource() {
 
@@ -51,7 +49,7 @@ class Kuaikanmanhua : HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val body = response.body!!.string()
+        val body = response.body.string()
         val jsonList = json.parseToJsonElement(body).jsonObject["data"]!!
             .jsonObject["topics"]!!
             .jsonArray
@@ -85,12 +83,12 @@ class Kuaikanmanhua : HttpSource() {
 
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         if (query.startsWith(TOPIC_ID_SEARCH_PREFIX)) {
-            val new_query = query.removePrefix(TOPIC_ID_SEARCH_PREFIX)
-            return client.newCall(GET("$apiUrl/v1/topics/$new_query"))
+            val newQuery = query.removePrefix(TOPIC_ID_SEARCH_PREFIX)
+            return client.newCall(GET("$apiUrl/v1/topics/$newQuery"))
                 .asObservableSuccess()
                 .map { response ->
                     val details = mangaDetailsParse(response)
-                    details.url = "/web/topic/$new_query"
+                    details.url = "/web/topic/$newQuery"
                     MangasPage(listOf(details), false)
                 }
         }
@@ -99,7 +97,6 @@ class Kuaikanmanhua : HttpSource() {
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         return if (query.isNotEmpty()) {
-
             GET("$apiUrl/v1/search/topic?q=$query&size=18", headers)
         } else {
             lateinit var genre: String
@@ -112,6 +109,7 @@ class Kuaikanmanhua : HttpSource() {
                     is StatusFilter -> {
                         status = filter.toUriPart()
                     }
+                    else -> {}
                 }
             }
             GET("$apiUrl/v1/search/by_tag?since=${(page - 1) * 10}&tag=$genre&sort=1&query_category=%7B%22update_status%22:$status%7D")
@@ -119,7 +117,7 @@ class Kuaikanmanhua : HttpSource() {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val body = response.body!!.string()
+        val body = response.body.string()
         val jsonObj = json.parseToJsonElement(body).jsonObject["data"]!!.jsonObject
         if (jsonObj["hit"] != null) {
             return parseMangaJsonArray(jsonObj["hit"]!!.jsonArray, true)
@@ -139,7 +137,7 @@ class Kuaikanmanhua : HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
-        val data = json.parseToJsonElement(response.body!!.string())
+        val data = json.parseToJsonElement(response.body.string())
             .jsonObject["data"]!!
             .jsonObject
 
@@ -160,7 +158,7 @@ class Kuaikanmanhua : HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val data = json.parseToJsonElement(response.body!!.string())
+        val data = json.parseToJsonElement(response.body.string())
             .jsonObject["data"]!!
             .jsonObject
         val chaptersJson = data["comics"]!!.jsonArray
@@ -178,7 +176,7 @@ class Kuaikanmanhua : HttpSource() {
                             ""
                         }
                     date_upload = obj["created_at"]!!.jsonPrimitive.long * 1000
-                }
+                },
             )
         }
         return chapters
@@ -196,8 +194,8 @@ class Kuaikanmanhua : HttpSource() {
         return GET(baseUrl + chapter.url)
     }
 
-    val fixJson: (MatchResult) -> CharSequence = {
-        match: MatchResult ->
+    private val fixJson: (MatchResult) -> CharSequence = {
+            match: MatchResult ->
         val str = match.value
         val out = str[0] + "\"" + str.subSequence(1, str.length - 1) + "\"" + str[str.length - 1]
         out
@@ -205,7 +203,7 @@ class Kuaikanmanhua : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
-        val script = document.selectFirst("script:containsData(comicImages)").data()
+        val script = document.selectFirst("script:containsData(comicImages)")!!.data()
         val images = script.substringAfter("comicImages:")
             .substringBefore(",is_vip_exclusive")
             .replace("""(:([^\[\{\"]+?)[\},])""".toRegex(), fixJson)
@@ -233,7 +231,7 @@ class Kuaikanmanhua : HttpSource() {
     override fun getFilterList() = FilterList(
         Filter.Header("注意：不影響按標題搜索"),
         StatusFilter(),
-        GenreFilter()
+        GenreFilter(),
     )
 
     override fun imageUrlParse(response: Response): String {
@@ -263,8 +261,8 @@ class Kuaikanmanhua : HttpSource() {
             Pair("萌系", "62"),
             Pair("玄幻", "63"),
             Pair("日常", "19"),
-            Pair("投稿", "76")
-        )
+            Pair("投稿", "76"),
+        ),
     )
 
     private class StatusFilter : UriPartFilter(
@@ -272,8 +270,8 @@ class Kuaikanmanhua : HttpSource() {
         arrayOf(
             Pair("全部", "1"),
             Pair("连载中", "2"),
-            Pair("已完结", "3")
-        )
+            Pair("已完结", "3"),
+        ),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :
@@ -283,9 +281,5 @@ class Kuaikanmanhua : HttpSource() {
 
     companion object {
         const val TOPIC_ID_SEARCH_PREFIX = "topic:"
-
-        private val DATE_FORMAT by lazy {
-            SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-        }
     }
 }

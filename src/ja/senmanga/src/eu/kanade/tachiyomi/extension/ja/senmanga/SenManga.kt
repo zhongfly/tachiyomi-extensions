@@ -32,10 +32,12 @@ class SenManga : ParsedHttpSource() {
                     "Referer",
                     it.request().url.newBuilder()
                         .removePathSegment(0)
-                        .toString()
+                        .toString(),
                 )
                 .build()
-        } else it.request()
+        } else {
+            it.request()
+        }
         it.proceed(request)
     }.build()
 
@@ -77,6 +79,7 @@ class SenManga : ParsedHttpSource() {
                     url.addQueryParameter("nogenre", genreExclude)
                 }
                 is SortFilter -> url.addQueryParameter("sort", filter.toUriPart())
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -87,9 +90,9 @@ class SenManga : ParsedHttpSource() {
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
         title = document.select("h1.series").text()
 
-        thumbnail_url = document.select("div.cover img").first().attr("src")
+        thumbnail_url = document.select("div.cover img").first()!!.attr("src")
 
-        description = document.select("div.summary").first().text()
+        description = document.select("div.summary").first()!!.text()
 
         val seriesElement = document.select("div.series-desc .info ")
 
@@ -116,7 +119,7 @@ class SenManga : ParsedHttpSource() {
 
         setUrlWithoutDomain(linkElement.attr("href"))
 
-        name = linkElement.first().text()
+        name = linkElement.first()!!.text()
 
         chapter_number = element.child(0).text().trim().toFloatOrNull() ?: -1f
 
@@ -128,7 +131,7 @@ class SenManga : ParsedHttpSource() {
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        return listOf(1..document.select("select[name=page] option:last-of-type").first().text().toInt()).flatten().map { i ->
+        return listOf(1..document.select("select[name=page] option:last-of-type").first()!!.text().toInt()).flatten().map { i ->
             Page(i - 1, "", "${document.location().replace(baseUrl, "$baseUrl/viewer")}/$i")
         }
     }
@@ -138,7 +141,7 @@ class SenManga : ParsedHttpSource() {
 
     override fun getFilterList() = FilterList(
         GenreFilter(getGenreList()),
-        SortFilter()
+        SortFilter(),
     )
 
     private class Genre(name: String, val id: String = name) : Filter.TriState(name)
@@ -155,8 +158,8 @@ class SenManga : ParsedHttpSource() {
             Pair("total_views", "Total Views"),
             Pair("title", "Title"),
             Pair("rank", "Rank"),
-            Pair("last_update", "Last Update")
-        )
+            Pair("last_update", "Last Update"),
+        ),
     )
 
     private fun getGenreList(): List<Genre> = listOf(
@@ -194,6 +197,6 @@ class SenManga : ParsedHttpSource() {
         Genre("Tragedy", "Tragedy"),
         Genre("Webtoons", "Webtoons"),
         Genre("Yaoi", "Yaoi"),
-        Genre("Yuri", "Yuri")
+        Genre("Yuri", "Yuri"),
     )
 }

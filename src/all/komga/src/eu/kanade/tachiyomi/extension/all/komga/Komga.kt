@@ -46,11 +46,9 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.security.MessageDigest
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
-open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, HttpSource() {
+open class Komga(private val suffix: String = "") : ConfigurableSource, UnmeteredSource, HttpSource() {
     override fun popularMangaRequest(page: Int): Request =
         GET("$baseUrl/api/v1/series?page=${page - 1}&deleted=false&sort=metadata.titleSort,asc", headers)
 
@@ -172,6 +170,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                         url.addQueryParameter("sort", sortCriteria)
                     }
                 }
+                else -> {}
             }
         }
 
@@ -193,10 +192,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
         GET(manga.url.replaceFirst("api/v1/", "", ignoreCase = true), headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val responseBody = response.body
-            ?: throw IllegalStateException("Response code ${response.code}")
-
-        return responseBody.use { body ->
+        return response.body.use { body ->
             if (response.fromReadList()) {
                 val readList = json.decodeFromString<ReadListDto>(body.string())
                 readList.toSManga()
@@ -212,8 +208,6 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val responseBody = response.body
-            ?: throw IllegalStateException("Response code ${response.code}")
-
         val page = responseBody.use { json.decodeFromString<PageWrapperDto<BookDto>>(it.string()).content }
 
         val r = page.mapIndexed { index, book ->
@@ -234,8 +228,6 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
 
     override fun pageListParse(response: Response): List<Page> {
         val responseBody = response.body
-            ?: throw IllegalStateException("Response code ${response.code}")
-
         val pages = responseBody.use { json.decodeFromString<List<PageDto>>(it.string()) }
         return pages.map {
             val url = "${response.request.url}/${it.number}" +
@@ -246,15 +238,13 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 }
             Page(
                 index = it.number - 1,
-                imageUrl = url
+                imageUrl = url,
             )
         }
     }
 
     private fun processSeriesPage(response: Response): MangasPage {
         val responseBody = response.body
-            ?: throw IllegalStateException("Response code ${response.code}")
-
         return responseBody.use { body ->
             if (response.fromReadList()) {
                 with(json.decodeFromString<PageWrapperDto<ReadListDto>>(body.string())) {
@@ -301,27 +291,27 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
     private fun Response.fromReadList() = request.url.toString().contains("/api/v1/readlists")
 
     private fun parseDate(date: String?): Long =
-        if (date == null)
-            Date().time
-        else {
+        if (date == null) {
+            0
+        } else {
             try {
-                SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(date).time
+                KomgaHelper.formatterDate.parse(date)?.time ?: 0
             } catch (ex: Exception) {
-                Date().time
+                0
             }
         }
 
     private fun parseDateTime(date: String?): Long =
-        if (date == null)
-            Date().time
-        else {
+        if (date == null) {
+            0
+        } else {
             try {
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(date).time
+                KomgaHelper.formatterDateTime.parse(date)?.time ?: 0
             } catch (ex: Exception) {
                 try {
-                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S", Locale.US).parse(date).time
+                    KomgaHelper.formatterDateTimeMilli.parse(date)?.time ?: 0
                 } catch (ex: Exception) {
-                    Date().time
+                    0
                 }
             }
         }
@@ -349,7 +339,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
 
     private data class CollectionFilterEntry(
         val name: String,
-        val id: String? = null
+        val id: String? = null,
     ) {
         override fun toString() = name
     }
@@ -366,7 +356,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 StatusGroup(listOf("Ongoing", "Ended", "Abandoned", "Hiatus").map { StatusFilter(it) }),
                 GenreGroup(genres.map { GenreFilter(it) }),
                 TagGroup(tags.map { TagFilter(it) }),
-                PublisherGroup(publishers.map { PublisherFilter(it) })
+                PublisherGroup(publishers.map { PublisherFilter(it) }),
             ).also { list ->
                 list.addAll(authors.map { (role, authors) -> AuthorGroup(role, authors.map { AuthorFilter(it) }) })
                 list.add(SeriesSort())
@@ -386,19 +376,15 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
     private var publishers = emptySet<String>()
     private var authors = emptyMap<String, List<AuthorDto>>() // roles to list of authors
 
-    override val name = "Komga${if (suffix.isNotBlank()) " ($suffix)" else ""}"
-    override val lang = "all"
-    override val supportsLatest = true
-    private val LOG_TAG = "extension.all.komga${if (suffix.isNotBlank()) ".$suffix" else ""}"
-
     // keep the previous ID when lang was "en", so that preferences and manga bindings are not lost
     override val id by lazy {
-        val key = "${name.lowercase()}/en/$versionId"
+        val key = "komga${if (suffix.isNotBlank()) " ($suffix)" else ""}/en/$versionId"
         val bytes = MessageDigest.getInstance("MD5").digest(key.toByteArray())
         (0..7).map { bytes[it].toLong() and 0xff shl 8 * (7 - it) }.reduce(Long::or) and Long.MAX_VALUE
     }
 
-    override val baseUrl by lazy { preferences.baseUrl }
+    private val displayName by lazy { preferences.displayName }
+    final override val baseUrl by lazy { preferences.baseUrl }
     private val username by lazy { preferences.username }
     private val password by lazy { preferences.password }
     private val json: Json by injectLazy()
@@ -410,6 +396,11 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
     private val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
+
+    override val name = "Komga${displayName.ifBlank { suffix }.let { if (it.isNotBlank()) " ($it)" else "" }}"
+    override val lang = "all"
+    override val supportsLatest = true
+    private val LOG_TAG = "extension.all.komga${if (suffix.isNotBlank()) ".$suffix" else ""}"
 
     override val client: OkHttpClient =
         network.client.newBuilder()
@@ -427,38 +418,48 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addEditTextPreference(
-            title = ADDRESS_TITLE,
+            title = "Source display name",
+            default = suffix,
+            summary = displayName.ifBlank { "Here you can change the source displayed suffix" },
+            key = PREF_DISPLAYNAME,
+        )
+        screen.addEditTextPreference(
+            title = "Address",
             default = ADDRESS_DEFAULT,
-            value = baseUrl,
+            summary = baseUrl.ifBlank { "The server address" },
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
             validate = { it.toHttpUrlOrNull() != null },
-            validationMessage = "The URL is invalid or malformed"
+            validationMessage = "The URL is invalid or malformed",
+            key = PREF_ADDRESS,
         )
         screen.addEditTextPreference(
-            title = USERNAME_TITLE,
+            title = "Username",
             default = USERNAME_DEFAULT,
-            value = username
+            summary = username.ifBlank { "The user account email" },
+            key = PREF_USERNAME,
         )
         screen.addEditTextPreference(
-            title = PASSWORD_TITLE,
+            title = "Password",
             default = PASSWORD_DEFAULT,
-            value = password,
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            summary = if (password.isBlank()) "The user account password" else "*".repeat(password.length),
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            key = PREF_PASSWORD,
         )
     }
 
     private fun PreferenceScreen.addEditTextPreference(
         title: String,
         default: String,
-        value: String,
+        summary: String,
         inputType: Int? = null,
         validate: ((String) -> Boolean)? = null,
-        validationMessage: String? = null
+        validationMessage: String? = null,
+        key: String = title,
     ) {
         val preference = EditTextPreference(context).apply {
-            key = title
+            this.key = key
             this.title = title
-            summary = value
+            this.summary = summary
             this.setDefaultValue(default)
             dialogTitle = title
 
@@ -468,29 +469,31 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 }
 
                 if (validate != null) {
-                    editText.addTextChangedListener(object : TextWatcher {
-                        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                    editText.addTextChangedListener(
+                        object : TextWatcher {
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
-                        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
-                        override fun afterTextChanged(editable: Editable?) {
-                            requireNotNull(editable)
+                            override fun afterTextChanged(editable: Editable?) {
+                                requireNotNull(editable)
 
-                            val text = editable.toString()
+                                val text = editable.toString()
 
-                            val isValid = text.isBlank() || validate(text)
+                                val isValid = text.isBlank() || validate(text)
 
-                            editText.error = if (!isValid) validationMessage else null
-                            editText.rootView.findViewById<Button>(android.R.id.button1)
-                                ?.isEnabled = editText.error == null
-                        }
-                    })
+                                editText.error = if (!isValid) validationMessage else null
+                                editText.rootView.findViewById<Button>(android.R.id.button1)
+                                    ?.isEnabled = editText.error == null
+                            }
+                        },
+                    )
                 }
             }
 
             setOnPreferenceChangeListener { _, newValue ->
                 try {
-                    val res = preferences.edit().putString(title, newValue as String).commit()
+                    val res = preferences.edit().putString(this.key, newValue as String).commit()
                     Toast.makeText(context, "Restart Tachiyomi to apply new setting.", Toast.LENGTH_LONG).show()
                     res
                 } catch (e: Exception) {
@@ -503,14 +506,17 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
         addPreference(preference)
     }
 
+    private val SharedPreferences.displayName
+        get() = getString(PREF_DISPLAYNAME, "")!!
+
     private val SharedPreferences.baseUrl
-        get() = getString(ADDRESS_TITLE, ADDRESS_DEFAULT)!!.removeSuffix("/")
+        get() = getString(PREF_ADDRESS, ADDRESS_DEFAULT)!!.removeSuffix("/")
 
     private val SharedPreferences.username
-        get() = getString(USERNAME_TITLE, USERNAME_DEFAULT)!!
+        get() = getString(PREF_USERNAME, USERNAME_DEFAULT)!!
 
     private val SharedPreferences.password
-        get() = getString(PASSWORD_TITLE, PASSWORD_DEFAULT)!!
+        get() = getString(PREF_PASSWORD, PASSWORD_DEFAULT)!!
 
     init {
         if (baseUrl.isNotBlank()) {
@@ -575,13 +581,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 try {
                     client.newCall(GET("$baseUrl/api/v1/tags", headers)).execute().use { response ->
                         tags = try {
-                            val responseBody = response.body
-                            if (responseBody != null) {
-                                responseBody.use { json.decodeFromString(it.string()) }
-                            } else {
-                                Log.e(LOG_TAG, "error while decoding JSON for tags filter: response body is null. Response code: ${response.code}")
-                                emptySet()
-                            }
+                            response.body.use { json.decodeFromString(it.string()) }
                         } catch (e: Exception) {
                             Log.e(LOG_TAG, "error while decoding JSON for tags filter", e)
                             emptySet()
@@ -594,13 +594,7 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 try {
                     client.newCall(GET("$baseUrl/api/v1/publishers", headers)).execute().use { response ->
                         publishers = try {
-                            val responseBody = response.body
-                            if (responseBody != null) {
-                                responseBody.use { json.decodeFromString(it.string()) }
-                            } else {
-                                Log.e(LOG_TAG, "error while decoding JSON for publishers filter: response body is null. Response code: ${response.code}")
-                                emptySet()
-                            }
+                            response.body.use { json.decodeFromString(it.string()) }
                         } catch (e: Exception) {
                             Log.e(LOG_TAG, "error while decoding JSON for publishers filter", e)
                             emptySet()
@@ -613,14 +607,9 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                 try {
                     client.newCall(GET("$baseUrl/api/v1/authors", headers)).execute().use { response ->
                         authors = try {
-                            val responseBody = response.body
-                            if (responseBody != null) {
-                                val list: List<AuthorDto> = responseBody.use { json.decodeFromString(it.string()) }
-                                list.groupBy { it.role }
-                            } else {
-                                Log.e(LOG_TAG, "error while decoding JSON for authors filter: response body is null. Response code: ${response.code}")
-                                emptyMap()
-                            }
+                            response.body
+                                .use { json.decodeFromString<List<AuthorDto>>(it.string()) }
+                                .groupBy { it.role }
                         } catch (e: Exception) {
                             Log.e(LOG_TAG, "error while decoding JSON for authors filter", e)
                             emptyMap()
@@ -636,17 +625,18 @@ open class Komga(suffix: String = "") : ConfigurableSource, UnmeteredSource, Htt
                     {},
                     { tr ->
                         Log.e(LOG_TAG, "error while doing initial calls", tr)
-                    }
+                    },
                 )
         }
     }
 
     companion object {
-        private const val ADDRESS_TITLE = "Address"
+        private const val PREF_DISPLAYNAME = "Source display name"
+        private const val PREF_ADDRESS = "Address"
         private const val ADDRESS_DEFAULT = ""
-        private const val USERNAME_TITLE = "Username"
+        private const val PREF_USERNAME = "Username"
         private const val USERNAME_DEFAULT = ""
-        private const val PASSWORD_TITLE = "Password"
+        private const val PREF_PASSWORD = "Password"
         private const val PASSWORD_DEFAULT = ""
 
         private val supportedImageTypes = listOf("image/jpeg", "image/png", "image/gif", "image/webp", "image/jxl")

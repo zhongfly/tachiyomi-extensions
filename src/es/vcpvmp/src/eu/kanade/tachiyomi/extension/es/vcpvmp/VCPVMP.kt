@@ -32,7 +32,7 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
     override fun popularMangaSelector() = "div#ccontent div.gallery"
 
     override fun popularMangaFromElement(element: Element) = SManga.create().apply {
-        element.select("a.cover").first().let {
+        element.select("a.cover").first()!!.let {
             setUrlWithoutDomain(it.attr("href"))
             title = it.select("div.caption").text()
             thumbnail_url = it.select("img").attr("abs:src").substringBefore("?")
@@ -55,8 +55,8 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
                 SChapter.create().apply {
                     name = manga.title
                     url = manga.url
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -80,25 +80,22 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
         filters.forEach { filter ->
             when (filter) {
                 is Genre -> {
-                    when (filter.toUriPart().isNotEmpty()) {
-                        true -> {
-                            url = baseUrl.toHttpUrlOrNull()!!.newBuilder()
+                    if (filter.toUriPart().isNotEmpty()) {
+                        url = baseUrl.toHttpUrlOrNull()!!.newBuilder()
 
-                            url.addPathSegments(if (isOnVCP) "tags" else "genero")
-                            url.addPathSegments(filter.toUriPart())
+                        url.addPathSegments(if (isOnVCP) "tags" else "genero")
+                        url.addPathSegments(filter.toUriPart())
 
-                            url.addPathSegments("page")
-                            url.addPathSegments(page.toString())
-                        }
+                        url.addPathSegments("page")
+                        url.addPathSegments(page.toString())
                     }
                 }
                 is Category -> {
-                    when (filter.toUriPart().isNotEmpty()) {
-                        true -> {
-                            url.addQueryParameter("cat", filter.toUriPart())
-                        }
+                    if (filter.toUriPart().isNotEmpty()) {
+                        url.addQueryParameter("cat", filter.toUriPart())
                     }
                 }
+                else -> {}
             }
         }
 
@@ -114,7 +111,7 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
     override fun getFilterList() = FilterList(
         Genre(),
         Filter.Separator(),
-        Category()
+        Category(),
     )
 
     // Array.from(document.querySelectorAll('div.tagcloud a.tag-cloud-link')).map(a => `Pair("${a.innerText}", "${a.href.replace('https://vercomicsporno.com/etiqueta/', '')}")`).join(',\n')
@@ -142,8 +139,8 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
             Pair("Tetonas", "tetonas"),
             Pair("Trios", "trios"),
             Pair("Videojuegos", "videojuegos"),
-            Pair("Yuri", "yuri-2")
-        )
+            Pair("Yuri", "yuri-2"),
+        ),
     )
 
     // Array.from(document.querySelectorAll('form select#cat option.level-0')).map(a => `Pair("${a.innerText}", "${a.value}")`).join(',\n')
@@ -481,7 +478,7 @@ open class VCPVMP(override val name: String, override val baseUrl: String) : Par
             Pair("Yusioka", "3082"),
             Pair("Zillionaire", "2807"),
             Pair("Zzomp", "252"),
-            Pair("ZZZ Comics", "2839")
-        )
+            Pair("ZZZ Comics", "2839"),
+        ),
     )
 }

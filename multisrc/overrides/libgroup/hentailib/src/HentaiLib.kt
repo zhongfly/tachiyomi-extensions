@@ -29,7 +29,7 @@ class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (csrfToken.isEmpty()) {
             val tokenResponse = client.newCall(popularMangaRequest(page)).execute()
-            val resBody = tokenResponse.body!!.string()
+            val resBody = tokenResponse.body.string()
             csrfToken = "_token\" content=\"(.*)\"".toRegex().find(resBody)!!.groups[1]!!.value
         }
         val url = super.searchMangaRequest(page, query, filters).url.newBuilder()
@@ -39,10 +39,11 @@ class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
                     if (tag.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(
                             if (tag.isIncluded()) "tags[include][]" else "tags[exclude][]",
-                            tag.id
+                            tag.id,
                         )
                     }
                 }
+                else -> {}
             }
         }
         return POST(url.toString(), catalogHeaders())
@@ -225,7 +226,7 @@ class HentaiLib : LibGroup("HentaiLib", "https://hentailib.me", "ru") {
         SearchFilter("Эксгибиционизм", "143"),
         SearchFilter("Эльф", "144"),
         SearchFilter("Юные", "145"),
-        SearchFilter("Яндэрэ", "146")
+        SearchFilter("Яндэрэ", "146"),
     )
 
     companion object {

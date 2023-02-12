@@ -31,7 +31,7 @@ class HentaiFantasy : ParsedHttpSource() {
     override val client: OkHttpClient = network.cloudflareClient
 
     companion object {
-        val pagesUrlPattern by lazy {
+        val pagesUrlPattern: Pattern by lazy {
             Pattern.compile("""\"url\":\"(.*?)\"""")
         }
 
@@ -80,6 +80,7 @@ class HentaiFantasy : ParsedHttpSource() {
                             it.id.toString()
                         }
                         .forEach { tags.add(it) }
+                else -> {}
             }
         }
 
@@ -119,17 +120,17 @@ class HentaiFantasy : ParsedHttpSource() {
         val manga = SManga.create()
         val genres = mutableListOf<String>()
         document.select("div#tablelist > div.row").forEach { row ->
-            when (row.select("div.cell > b").first().text().trim()) {
+            when (row.select("div.cell > b").first()!!.text().trim()) {
                 "Autore" -> manga.author = row.select("div.cell > a").text().trim()
                 "Genere", "Tipo" -> row.select("div.cell > a > span.label").forEach {
                     genres.add(it.text().trim())
                 }
-                "Descrizione" -> manga.description = row.select("div.cell").last().text().trim()
+                "Descrizione" -> manga.description = row.select("div.cell").last()!!.text().trim()
             }
         }
         manga.genre = genres.joinToString(", ")
         manga.status = SManga.UNKNOWN
-        manga.thumbnail_url = document.select("div.thumbnail > img")?.attr("src")
+        manga.thumbnail_url = document.select("div.thumbnail > img").attr("src")
         return manga
     }
 
@@ -172,7 +173,7 @@ class HentaiFantasy : ParsedHttpSource() {
     override fun pageListRequest(chapter: SChapter) = POST(baseUrl + chapter.url, headers)
 
     override fun pageListParse(response: Response): List<Page> {
-        val body = response.body!!.string()
+        val body = response.body.string()
         val pages = mutableListOf<Page>()
 
         val p = pagesUrlPattern
@@ -197,7 +198,7 @@ class HentaiFantasy : ParsedHttpSource() {
     private class TagList(title: String, tags: List<Tag>) : Filter.Group<Tag>(title, tags)
 
     override fun getFilterList() = FilterList(
-        TagList("Generi", getTagList())
+        TagList("Generi", getTagList()),
     )
 
     // Tags: 47
@@ -249,6 +250,6 @@ class HentaiFantasy : ParsedHttpSource() {
         Tag("Vanilla", 19),
         Tag("Yandere", 58),
         Tag("Yaoi", 22),
-        Tag("Yuri", 14)
+        Tag("Yuri", 14),
     )
 }

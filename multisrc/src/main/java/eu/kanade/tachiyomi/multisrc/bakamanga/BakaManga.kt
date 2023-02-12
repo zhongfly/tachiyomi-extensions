@@ -17,7 +17,7 @@ import java.util.Calendar
 abstract class BakaManga(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : ParsedHttpSource() {
     override val supportsLatest = true
 
@@ -29,9 +29,9 @@ abstract class BakaManga(
         ".li_truyen"
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        setUrlWithoutDomain(element.selectFirst("a").absUrl("href"))
-        title = element.selectFirst(".name").text()
-        thumbnail_url = element.selectFirst("img").absUrl("src")
+        setUrlWithoutDomain(element.selectFirst("a")!!.absUrl("href"))
+        title = element.selectFirst(".name")!!.text()
+        thumbnail_url = element.selectFirst("img")!!.absUrl("src")
     }
 
     override fun popularMangaNextPageSelector(): String? =
@@ -47,7 +47,7 @@ abstract class BakaManga(
             val filterList = if (filters.isEmpty()) getFilterList() else filters
             val genreFilter = filterList.find { it is GenreFilter } as GenreFilter
             val url = "$baseUrl/category/${genreFilter.toUriPart()}/page/$page"
-            GET(url.toString(), headers)
+            GET(url, headers)
         }
     }
 
@@ -75,8 +75,8 @@ abstract class BakaManga(
 
     // Details
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
-        val info = document.selectFirst(".box_info")
-        title = info.selectFirst("h1").text()
+        val info = document.selectFirst(".box_info")!!
+        title = info.selectFirst("h1")!!.text()
         artist = info.select(".info-item:contains(Artist:) > a").joinToString { it.text() }
 
         val descElements = info.select(".story-detail-info:matchText")
@@ -99,12 +99,12 @@ abstract class BakaManga(
         }
 
         genre = info.select(".post-categories > li > a").joinToString { it.text() }
-        status = info.selectFirst(".info-item:contains(Status:)").text()
+        status = info.selectFirst(".info-item:contains(Status:)")!!.text()
             .removePrefix("Status:")
             .trim()
             .toStatus()
 
-        thumbnail_url = info.selectFirst(".box_info img").absUrl("src")
+        thumbnail_url = info.selectFirst(".box_info img")!!.absUrl("src")
     }
 
     // Chapters
@@ -115,14 +115,14 @@ abstract class BakaManga(
         ".list-chapters > .list-chapters > .box_list > .chapter-item"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
-        setUrlWithoutDomain(element.selectFirst("a").absUrl("href"))
-        name = element.selectFirst(".chap_name").text()
+        setUrlWithoutDomain(element.selectFirst("a")!!.absUrl("href"))
+        name = element.selectFirst(".chap_name")!!.text()
         chapter_number = name
             .substringAfter(' ')
             .substringBefore(' ')
             .toFloatOrNull() ?: -1f
 
-        date_upload = parseRelativeDate(element.selectFirst(".chap_update").text())
+        date_upload = parseRelativeDate(element.selectFirst(".chap_update")!!.text())
     }
 
     private fun parseRelativeDate(date: String): Long {
@@ -155,7 +155,7 @@ abstract class BakaManga(
     override fun getFilterList() = FilterList(
         Filter.Header("NOTE: Ignored if using text search!"),
         Filter.Separator(),
-        GenreFilter(getGenreList())
+        GenreFilter(getGenreList()),
     )
 
     class GenreFilter(vals: Array<Pair<String, String>>) : UriPartFilter("Category", vals)

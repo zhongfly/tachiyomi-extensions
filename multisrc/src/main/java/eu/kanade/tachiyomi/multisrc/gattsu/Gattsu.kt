@@ -21,7 +21,7 @@ import java.util.Locale
 abstract class Gattsu(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : ParsedHttpSource() {
 
     override val supportsLatest = true
@@ -105,14 +105,16 @@ abstract class Gattsu(
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
         name = "Capítulo único"
         scanlator = element.select("ul.post-itens li:contains(Tradutor) a").firstOrNull()?.text()
-        date_upload = element.ownerDocument().select("meta[property=article:published_time]").firstOrNull()
+        date_upload = element.ownerDocument()!!.select("meta[property=article:published_time]").firstOrNull()
             ?.attr("content")
             .orEmpty()
             .toDate()
-        setUrlWithoutDomain(element.ownerDocument().location())
+        setUrlWithoutDomain(element.ownerDocument()!!.location())
     }
 
-    protected open fun pageListSelector(): String = "div.meio div.post-box ul.post-fotos li a > img"
+    protected open fun pageListSelector(): String =
+        "div.meio div.post-box ul.post-fotos li a > img, " +
+            "div.meio div.post-box.listaImagens div.galeriaHtml img"
 
     override fun pageListParse(document: Document): List<Page> {
         return document.select(pageListSelector())
@@ -133,8 +135,11 @@ abstract class Gattsu(
     }
 
     protected fun Element.imgAttr(): String =
-        if (hasAttr("data-src")) attr("abs:data-src")
-        else attr("abs:src")
+        if (hasAttr("data-src")) {
+            attr("abs:data-src")
+        } else {
+            attr("abs:src")
+        }
 
     protected fun String.toDate(): Long {
         return try {

@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit
 
 class YANPFansub : Madara(
     "YANP Fansub",
-    "https://melhorcasal.com",
+    "https://yanpfansub.com",
     "pt-BR",
-    SimpleDateFormat("MMMM dd, yyyy", Locale("pt", "BR"))
+    SimpleDateFormat("MMMM dd, yyyy", Locale("pt", "BR")),
 ) {
 
     // Scanlator changed the theme from WpMangaReader to Madara.

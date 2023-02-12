@@ -62,26 +62,26 @@ class Randowiz : ParsedHttpSource() {
                             "You like draw? I give you draw."
                         thumbnail_url =
                             "https://i0.wp.com/randowis.com/wp-content/uploads/2021/05/colour-studies-021-post.jpg"
-                    }
+                    },
                 ),
-                false
-            )
+                false,
+            ),
         )
     }
 
     override fun fetchSearchManga(
         page: Int,
         query: String,
-        filters: FilterList
+        filters: FilterList,
     ): Observable<MangasPage> = fetchPopularManga(page).map {
         MangasPage(
             it.mangas.filter { manga ->
                 manga.title.contains(
                     query,
-                    ignoreCase = true
+                    ignoreCase = true,
                 )
             },
-            false
+            false,
         )
     }
 
@@ -110,7 +110,7 @@ class Randowiz : ParsedHttpSource() {
     override fun chapterListSelector() = ".has-post-thumbnail"
 
     override fun chapterFromElement(element: Element): SChapter {
-        val linkTag = element.select(".elementor-post__title a").first()
+        val linkTag = element.select(".elementor-post__title a").first()!!
         val chapter = SChapter.create()
         chapter.name = linkTag.text()
         chapter.url = linkTag.attr("href").split(".com")[1]

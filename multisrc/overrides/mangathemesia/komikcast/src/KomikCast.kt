@@ -7,7 +7,6 @@ import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import okhttp3.Headers
@@ -24,7 +23,7 @@ class KomikCast : MangaThemesia(
     "Komik Cast",
     baseUrl = "https://komikcast.site",
     "id",
-    mangaUrlDirectory = "/daftar-komik"
+    mangaUrlDirectory = "/daftar-komik",
 ) {
     // Formerly "Komik Cast (WP Manga Stream)"
     override val id = 972717448578983812
@@ -62,7 +61,7 @@ class KomikCast : MangaThemesia(
     override fun searchMangaSelector() = "div.list-update_item"
 
     override fun searchMangaFromElement(element: Element) = super.searchMangaFromElement(element).apply {
-        title = element.selectFirst("h3.title").ownText()
+        title = element.selectFirst("h3.title")!!.ownText()
     }
 
     override val seriesDetailsSelector = "div.komik_info:has(.komik_info-content)"
@@ -71,13 +70,14 @@ class KomikCast : MangaThemesia(
     override val seriesAltNameSelector = ".komik_info-content-native"
     override val seriesGenreSelector = ".komik_info-content-genre a"
     override val seriesThumbnailSelector = ".komik_info-content-thumbnail img"
+    override val seriesStatusSelector = ".komik_info-content-info:contains(Status)"
 
     override fun chapterListSelector() = "div.komik_info-chapters li"
 
     override fun chapterFromElement(element: Element) = SChapter.create().apply {
         val urlElements = element.select("a")
         setUrlWithoutDomain(urlElements.attr("href"))
-        name = element.select(".lch a, .chapternum").text().ifBlank { urlElements.first().text() }
+        name = element.select(".lch a, .chapternum")!!.text().ifBlank { urlElements.first()!!.text() }
         date_upload = parseChapterDate2(element.select(".chapter-link-time").text())
     }
 
@@ -129,7 +129,7 @@ class KomikCast : MangaThemesia(
             var imageServer = "cdn"
             if (!imageList.containsKey(imageServer)) imageServer = imageList.keys.first()
             val imageElement = imageList[imageServer]!!.jsonArray.joinToString("")
-            doc = Jsoup.parse(json.decodeFromString(imageElement))
+            doc = Jsoup.parse(imageElement)
             cssQuery = "img.size-full"
         }
 
@@ -185,8 +185,8 @@ class KomikCast : MangaThemesia(
         arrayOf(
             Pair("All", ""),
             Pair("Ongoing", "ongoing"),
-            Pair("Completed", "completed")
-        )
+            Pair("Completed", "completed"),
+        ),
     )
 
     private class TypeFilter : SelectFilter(
@@ -195,8 +195,8 @@ class KomikCast : MangaThemesia(
             Pair("All", ""),
             Pair("Manga", "manga"),
             Pair("Manhwa", "manhwa"),
-            Pair("Manhua", "manhua")
-        )
+            Pair("Manhua", "manhua"),
+        ),
     )
 
     private class OrderByFilter(defaultOrder: String? = null) : SelectFilter(
@@ -206,9 +206,9 @@ class KomikCast : MangaThemesia(
             Pair("A-Z", "titleasc"),
             Pair("Z-A", "titledesc"),
             Pair("Update", "update"),
-            Pair("Popular", "popular")
+            Pair("Popular", "popular"),
         ),
-        defaultOrder
+        defaultOrder,
     )
 
     override fun getFilterList(): FilterList {
@@ -227,7 +227,7 @@ class KomikCast : MangaThemesia(
                     Filter.Header("NOTE: Can't be used with other filter!"),
                     Filter.Header("$name Project List page"),
                     ProjectFilter(),
-                )
+                ),
             )
         }
         return FilterList(filters)

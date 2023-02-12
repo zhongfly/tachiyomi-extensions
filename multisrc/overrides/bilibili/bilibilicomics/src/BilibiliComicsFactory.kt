@@ -7,13 +7,16 @@ import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliComicDto
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliCredential
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliGetCredential
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliIntl
+import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliSearchDto
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliTag
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliUnlockedEpisode
 import eu.kanade.tachiyomi.multisrc.bilibili.BilibiliUserEpisodes
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.SourceFactory
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.buildJsonObject
@@ -28,6 +31,7 @@ import okhttp3.Response
 import okio.Buffer
 import java.io.IOException
 import java.net.URLDecoder
+import java.util.Calendar
 
 class BilibiliComicsFactory : SourceFactory {
     override fun createSources() = listOf(
@@ -42,7 +46,7 @@ class BilibiliComicsFactory : SourceFactory {
 abstract class BilibiliComics(lang: String) : Bilibili(
     "BILIBILI COMICS",
     "https://www.bilibilicomics.com",
-    lang
+    lang,
 ) {
 
     override val client: OkHttpClient = super.client.newBuilder()
@@ -63,6 +67,44 @@ abstract class BilibiliComics(lang: String) : Bilibili(
         get() = "https://$globalApiSubDomain.bilibilicomics.com"
 
     private var accessTokenCookie: BilibiliAccessTokenCookie? = null
+
+    private val dayOfWeek: Int
+        get() = Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1
+
+    override fun latestUpdatesRequest(page: Int): Request {
+        val jsonPayload = buildJsonObject { put("day", dayOfWeek) }
+        val requestBody = jsonPayload.toString().toRequestBody(JSON_MEDIA_TYPE)
+
+        val newHeaders = headersBuilder()
+            .add("Content-Length", requestBody.contentLength().toString())
+            .add("Content-Type", requestBody.contentType().toString())
+            .set("Referer", "$baseUrl/schedule")
+            .build()
+
+        val apiUrl = "$baseUrl/$API_COMIC_V1_COMIC_ENDPOINT/GetSchedule".toHttpUrl().newBuilder()
+            .addCommonParameters()
+            .toString()
+
+        return POST(apiUrl, newHeaders, requestBody)
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val result = response.parseAs<BilibiliSearchDto>()
+
+        if (result.code != 0) {
+            return MangasPage(emptyList(), hasNextPage = false)
+        }
+
+        val comicList = result.data!!.list.map(::latestMangaFromObject)
+
+        return MangasPage(comicList, hasNextPage = false)
+    }
+
+    protected open fun latestMangaFromObject(comic: BilibiliComicDto): SManga = SManga.create().apply {
+        title = comic.title
+        thumbnail_url = comic.verticalCover + THUMBNAIL_RESOLUTION
+        url = "/detail/mc${comic.comicId}"
+    }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         if (!signedIn) {
@@ -203,7 +245,7 @@ abstract class BilibiliComics(lang: String) : Bilibili(
 
             val refreshTokenRequest = refreshTokenRequest(
                 accessTokenCookie!!.accessToken,
-                accessTokenCookie!!.refreshToken
+                accessTokenCookie!!.refreshToken,
             )
             val refreshTokenResponse = chain.proceed(refreshTokenRequest)
 
@@ -252,7 +294,7 @@ abstract class BilibiliComics(lang: String) : Bilibili(
         return BilibiliAccessTokenCookie(
             accessToken.accessToken,
             accessToken.refreshToken,
-            accessTokenCookie!!.area
+            accessTokenCookie!!.area,
         )
     }
 
@@ -292,7 +334,7 @@ class BilibiliComicsEn : BilibiliComics(BilibiliIntl.ENGLISH) {
         BilibiliTag("Romance", 13),
         BilibiliTag("Slice of Life", 21),
         BilibiliTag("Suspense", 41),
-        BilibiliTag("Teen", 20)
+        BilibiliTag("Teen", 20),
     )
 }
 
@@ -312,7 +354,7 @@ class BilibiliComicsCn : BilibiliComics(BilibiliIntl.SIMPLIFIED_CHINESE) {
         BilibiliTag("百合", 16),
         BilibiliTag("玄幻", 30),
         BilibiliTag("悬疑", 41),
-        BilibiliTag("科幻", 8)
+        BilibiliTag("科幻", 8),
     )
 }
 
@@ -329,7 +371,7 @@ class BilibiliComicsId : BilibiliComics(BilibiliIntl.INDONESIAN) {
         BilibiliTag("Komedi", 14),
         BilibiliTag("Menegangkan", 41),
         BilibiliTag("Remaja", 20),
-        BilibiliTag("Romantis", 13)
+        BilibiliTag("Romantis", 13),
     )
 }
 
@@ -354,7 +396,7 @@ class BilibiliComicsEs : BilibiliComics(BilibiliIntl.SPANISH) {
         BilibiliTag("Romance", 13),
         BilibiliTag("Suspenso", 41),
         BilibiliTag("Urbano", 9),
-        BilibiliTag("Wuxia", 103)
+        BilibiliTag("Wuxia", 103),
     )
 }
 
@@ -369,6 +411,6 @@ class BilibiliComicsFr : BilibiliComics(BilibiliIntl.FRENCH) {
         BilibiliTag("GL", 16),
         BilibiliTag("Fantasy Orientale", 30),
         BilibiliTag("Suspense", 41),
-        BilibiliTag("Moderne", 111)
+        BilibiliTag("Moderne", 111),
     )
 }

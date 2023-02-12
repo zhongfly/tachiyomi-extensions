@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.en.ninehentai
 
-import android.util.Log
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
@@ -53,7 +52,7 @@ class NineHentai : HttpSource() {
         sort: Int = 0,
         range: List<Int> = listOf(0, 2000),
         includedTags: List<Tag> = listOf(),
-        excludedTags: List<Tag> = listOf()
+        excludedTags: List<Tag> = listOf(),
     ): Request {
         val searchRequest = SearchRequest(
             text = searchText,
@@ -63,9 +62,9 @@ class NineHentai : HttpSource() {
             tag = Items(
                 items = TagArrays(
                     included = includedTags,
-                    excluded = excludedTags
-                )
-            )
+                    excluded = excludedTags,
+                ),
+            ),
         )
         val jsonString = json.encodeToString(SearchRequestPayload(search = searchRequest))
         return POST("$baseUrl$SEARCH_URL", headers, jsonString.toRequestBody(MEDIA_TYPE))
@@ -74,7 +73,7 @@ class NineHentai : HttpSource() {
     private fun parseSearchResponse(response: Response): MangasPage {
         return response.use {
             val page = json.decodeFromString<SearchRequestPayload>(it.request.bodyString).search.page
-            json.decodeFromString<SearchResponse>(it.body?.string().orEmpty()).let { searchResponse ->
+            json.decodeFromString<SearchResponse>(it.body.string()).let { searchResponse ->
                 MangasPage(
                     searchResponse.results.map {
                         SManga.create().apply {
@@ -84,7 +83,7 @@ class NineHentai : HttpSource() {
                             thumbnail_url = "${it.image_server}${it.id}/1.jpg?${it.total_page}"
                         }
                     },
-                    searchResponse.totalCount - 1 > page
+                    searchResponse.totalCount - 1 > page,
                 )
             }
         }
@@ -175,7 +174,7 @@ class NineHentai : HttpSource() {
             sort = sort,
             range = range,
             includedTags = includedTags,
-            excludedTags = excludedTags
+            excludedTags = excludedTags,
         )
     }
 
@@ -185,9 +184,9 @@ class NineHentai : HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga {
         return SManga.create().apply {
-            response.asJsoup().selectFirst("div#bigcontainer").let { info ->
+            response.asJsoup().selectFirst("div#bigcontainer")!!.let { info ->
                 title = info.select("h1").text()
-                thumbnail_url = info.selectFirst("div#cover v-lazy-image").attr("abs:src")
+                thumbnail_url = info.selectFirst("div#cover v-lazy-image")!!.attr("abs:src")
                 status = SManga.COMPLETED
                 artist = info.selectTextOrNull("div.field-name:contains(Artist:) a.tag")
                 author = info.selectTextOrNull("div.field-name:contains(Group:) a.tag") ?: "Unknown circle"
@@ -223,7 +222,7 @@ class NineHentai : HttpSource() {
                 name = "Chapter"
                 date_upload = parseChapterDate(time)
                 url = response.request.url.encodedPath
-            }
+            },
         )
     }
 
@@ -267,7 +266,7 @@ class NineHentai : HttpSource() {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val resultsObj = json.parseToJsonElement(response.body!!.string()).jsonObject["results"]!!
+        val resultsObj = json.parseToJsonElement(response.body.string()).jsonObject["results"]!!
         val manga = json.decodeFromJsonElement<Manga>(resultsObj)
         val imageUrl = manga.image_server + manga.id
         var totalPages = manga.total_page
@@ -275,8 +274,8 @@ class NineHentai : HttpSource() {
         client.newCall(
             GET(
                 "$imageUrl/preview/${totalPages}t.jpg",
-                headersBuilder().build()
-            )
+                headersBuilder().build(),
+            ),
         ).execute().code.let { code ->
             if (code == 404) totalPages--
         }
@@ -304,23 +303,26 @@ class NineHentai : HttpSource() {
             .subscribeOn(Schedulers.io())
             .map { response ->
                 // Returns the first matched tag, or null if there are no results
-                val tagList = json.parseToJsonElement(response.body!!.string()).jsonObject["results"]!!.jsonArray.map {
+                val tagList = json.parseToJsonElement(response.body.string()).jsonObject["results"]!!.jsonArray.map {
                     json.decodeFromJsonElement<Tag>(it)
                 }
-                if (tagList.isEmpty()) return@map null
-                else tagList.first()
+                if (tagList.isEmpty()) {
+                    return@map null
+                } else {
+                    tagList.first()
+                }
             }.toBlocking().first()
     }
 
     private fun fetchSingleManga(response: Response): MangasPage {
-        val resultsObj = json.parseToJsonElement(response.body!!.string()).jsonObject["results"]!!
+        val resultsObj = json.parseToJsonElement(response.body.string()).jsonObject["results"]!!
         val manga = json.decodeFromJsonElement<Manga>(resultsObj)
         val list = listOf(
             SManga.create().apply {
                 setUrlWithoutDomain("/g/${manga.id}")
                 title = manga.title
                 thumbnail_url = "${manga.image_server + manga.id}/cover.jpg"
-            }
+            },
         )
         return MangasPage(list, false)
     }
@@ -329,7 +331,7 @@ class NineHentai : HttpSource() {
 
     private class SortFilter : Filter.Select<String>(
         "Sort by",
-        arrayOf("Newest", "Popular Right now", "Most Fapped", "Most Viewed", "By Title")
+        arrayOf("Newest", "Popular Right now", "Most Fapped", "Most Viewed", "By Title"),
     )
 
     private class MinPagesFilter : Filter.Text("Minimum Pages")

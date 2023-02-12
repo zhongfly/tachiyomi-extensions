@@ -64,20 +64,20 @@ class DoujinDesu : ParsedHttpSource() {
         Order("A-Z", "title"),
         Order("Latest Update", "update"),
         Order("Latest Added", "latest"),
-        Order("Popular", "popular")
+        Order("Popular", "popular"),
     )
 
     private val statusList = arrayOf(
         Status("All", ""),
         Status("Publishing", "Publishing"),
-        Status("Finished", "Finished")
+        Status("Finished", "Finished"),
     )
 
     private val categoryNames = arrayOf(
         Category("All", ""),
         Category("Doujinshi", "Doujinshi"),
         Category("Manga", "Manga"),
-        Category("Manhwa", "Manhwa")
+        Category("Manhwa", "Manhwa"),
     )
 
     private fun genreList() = listOf(
@@ -231,7 +231,7 @@ class DoujinDesu : ParsedHttpSource() {
         Genre("X-Ray"),
         Genre("Yandere"),
         Genre("Yaoi"),
-        Genre("Yuri")
+        Genre("Yuri"),
     )
 
     private class CategoryNames(categories: Array<Category>) : Filter.Select<Category>("Category", categories, 0)
@@ -252,7 +252,7 @@ class DoujinDesu : ParsedHttpSource() {
         return manga
     }
 
-    protected open fun imageFromElement(element: Element): String? {
+    private fun imageFromElement(element: Element): String? {
         return when {
             element.hasAttr("data-src") -> element.attr("abs:data-src")
             element.hasAttr("data-lazy-src") -> element.attr("abs:data-lazy-src")
@@ -268,10 +268,6 @@ class DoujinDesu : ParsedHttpSource() {
     private fun reconstructDate(dateStr: String): Long {
         return runCatching { DATE_FORMAT.parse(dateStr)?.time }
             .getOrNull() ?: 0L
-    }
-
-    private fun getImage(element: Element): Page {
-        return Page(getNumberFromString(element.attr("img-id")).toInt(), "", element.attr("src"))
     }
 
     // Popular
@@ -303,7 +299,7 @@ class DoujinDesu : ParsedHttpSource() {
     // Search & FIlter
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        var url = "$baseUrl/manga/page/$page/".toHttpUrlOrNull()?.newBuilder()!!.addQueryParameter("title", query)
+        val url = "$baseUrl/manga/page/$page/".toHttpUrlOrNull()?.newBuilder()!!.addQueryParameter("title", query)
         (if (filters.isEmpty()) getFilterList() else filters).forEach { filter ->
             when (filter) {
                 is CategoryNames -> {
@@ -325,6 +321,7 @@ class DoujinDesu : ParsedHttpSource() {
                     val status = filter.values[filter.state]
                     url.addQueryParameter("statusx", status.key)
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -338,17 +335,17 @@ class DoujinDesu : ParsedHttpSource() {
         StatusList(statusList),
         CategoryNames(categoryNames),
         OrderBy(orderBy),
-        GenreList(genreList())
+        GenreList(genreList()),
     )
 
     // Detail Parse
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("section.metadata").first()
+        val infoElement = document.select("section.metadata").first()!!
         val manga = SManga.create()
         manga.description = when {
             document.select("section.metadata > div.pb-2 > p:nth-child(1)").isEmpty() -> "Tidak ada deskripsi yang tersedia bosque"
-            else -> document.select("section.metadata > div.pb-2 > p:nth-child(1)").first().text()
+            else -> document.select("section.metadata > div.pb-2 > p:nth-child(1)").first()!!.text()
         }
         val genres = mutableListOf<String>()
         infoElement.select("div.tags > a").forEach { element ->
@@ -357,7 +354,7 @@ class DoujinDesu : ParsedHttpSource() {
         }
         manga.author = document.select("section.metadata > table:nth-child(2) > tbody > tr.pages > td:contains(Author) + td:nth-child(2) > a").joinToString { it.text() }
         manga.genre = infoElement.select("div.tags > a").joinToString { it.text() }
-        manga.status = parseStatus(document.select("section.metadata > table:nth-child(2) > tbody > tr:nth-child(1) > td:nth-child(2) > a").first().text())
+        manga.status = parseStatus(document.select("section.metadata > table:nth-child(2) > tbody > tr:nth-child(1) > td:nth-child(2) > a").first()!!.text())
         manga.thumbnail_url = document.select("figure.thumbnail > img").attr("src")
         manga.artist = document.select("section.metadata > table:nth-child(2) > tbody > tr.pages > td:contains(Character) + td:nth-child(2) > a").joinToString { it.text() }
 

@@ -38,7 +38,7 @@ class Happymh : HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val data = json.parseToJsonElement(response.body!!.string()).jsonObject["data"]!!.jsonObject
+        val data = json.parseToJsonElement(response.body.string()).jsonObject["data"]!!.jsonObject
         val items = data["items"]!!.jsonArray.map {
             SManga.create().apply {
                 val obj = it.jsonObject
@@ -77,12 +77,12 @@ class Happymh : HttpSource() {
 
     override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
         val document = response.asJsoup()
-        title = document.selectFirst("div.mg-property > h2.mg-title").text()
-        thumbnail_url = document.selectFirst("div.mg-cover > mip-img").attr("abs:src")
-        author = document.selectFirst("div.mg-property > p.mg-sub-title:nth-of-type(2)").text()
+        title = document.selectFirst("div.mg-property > h2.mg-title")!!.text()
+        thumbnail_url = document.selectFirst("div.mg-cover > mip-img")!!.attr("abs:src")
+        author = document.selectFirst("div.mg-property > p.mg-sub-title:nth-of-type(2)")!!.text()
         artist = author
         genre = document.select("div.mg-property > p.mg-cate > a").eachText().joinToString(", ")
-        description = document.selectFirst("div.manga-introduction > mip-showmore#showmore").text()
+        description = document.selectFirst("div.manga-introduction > mip-showmore#showmore")!!.text()
     }
 
     // Chapters
@@ -90,7 +90,7 @@ class Happymh : HttpSource() {
     override fun chapterListParse(response: Response): List<SChapter> {
         val comicId = response.request.url.pathSegments.last()
         val document = response.asJsoup()
-        val script = document.selectFirst("mip-data > script:containsData(chapterList)").html()
+        val script = document.selectFirst("mip-data > script:containsData(chapterList)")!!.html()
         return json.parseToJsonElement(script).jsonObject["chapterList"]!!.jsonArray.map {
             SChapter.create().apply {
                 val chapterId = it.jsonObject["id"]!!.jsonPrimitive.content
@@ -109,7 +109,7 @@ class Happymh : HttpSource() {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        return json.parseToJsonElement(response.body!!.string())
+        return json.parseToJsonElement(response.body.string())
             .jsonObject["data"]!!.jsonObject["scans"]!!.jsonArray
             // If n == 1, the image is from next chapter
             .filter { it.jsonObject["n"]!!.jsonPrimitive.int == 0 }

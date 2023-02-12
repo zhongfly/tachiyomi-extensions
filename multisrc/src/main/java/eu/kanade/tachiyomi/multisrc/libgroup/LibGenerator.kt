@@ -9,12 +9,12 @@ class LibGenerator : ThemeSourceGenerator {
 
     override val themeClass = "LibGroup"
 
-    override val baseVersionCode: Int = 12
+    override val baseVersionCode: Int = 15
 
     override val sources = listOf(
         SingleLang("MangaLib", "https://mangalib.me", "ru", overrideVersionCode = 74),
         SingleLang("HentaiLib", "https://hentailib.me", "ru", isNsfw = true, overrideVersionCode = 19),
-        SingleLang("YaoiLib", "https://yaoilib.me", "ru", isNsfw = true, overrideVersionCode = 1)
+        SingleLang("YaoiLib", "https://v1.yaoilib.net", "ru", isNsfw = true, overrideVersionCode = 2),
     )
 
     companion object {

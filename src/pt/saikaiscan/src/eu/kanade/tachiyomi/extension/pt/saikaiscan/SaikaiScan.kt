@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension.pt.saikaiscan
 
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -16,17 +15,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.Jsoup
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class SaikaiScan : HttpSource() {
 
-    override val name = "Saikai Scan"
+    override val name = SOURCE_NAME
 
-    override val baseUrl = "https://saikaiscan.com.br"
+    override val baseUrl = "https://saikai.com.br"
 
     override val lang = "pt-BR"
 
@@ -63,16 +59,10 @@ class SaikaiScan : HttpSource() {
     override fun popularMangaParse(response: Response): MangasPage {
         val result = response.parseAs<SaikaiScanPaginatedStoriesDto>()
 
-        val mangaList = result.data!!.map(::popularMangaFromObject)
+        val mangaList = result.data!!.map(SaikaiScanStoryDto::toSManga)
         val hasNextPage = result.meta!!.currentPage < result.meta.lastPage
 
         return MangasPage(mangaList, hasNextPage)
-    }
-
-    private fun popularMangaFromObject(obj: SaikaiScanStoryDto): SManga = SManga.create().apply {
-        title = obj.title
-        thumbnail_url = "$IMAGE_SERVER_URL/${obj.image}"
-        url = "/comics/${obj.slug}"
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
@@ -106,51 +96,17 @@ class SaikaiScan : HttpSource() {
             .addQueryParameter("per_page", PER_PAGE)
             .addQueryParameter("relationships", "language,type,format")
 
-        filters.forEach { filter ->
-            when (filter) {
-                is GenreFilter -> {
-                    val genresParameter = filter.state
-                        .filter { it.state }
-                        .joinToString(",") { it.id.toString() }
-                    apiEndpointUrl.addQueryParameter("genres", genresParameter)
-                }
-
-                is CountryFilter -> {
-                    if (filter.state > 0) {
-                        apiEndpointUrl.addQueryParameter("country", filter.selected.id.toString())
-                    }
-                }
-
-                is StatusFilter -> {
-                    if (filter.state > 0) {
-                        apiEndpointUrl.addQueryParameter("status", filter.selected.id.toString())
-                    }
-                }
-
-                is SortByFilter -> {
-                    val sortProperty = filter.sortProperties[filter.state!!.index]
-                    val sortDirection = if (filter.state!!.ascending) "asc" else "desc"
-                    apiEndpointUrl.setQueryParameter("sortProperty", sortProperty.slug)
-                    apiEndpointUrl.setQueryParameter("sortDirection", sortDirection)
-                }
-            }
-        }
+        filters.filterIsInstance<UrlQueryFilter>()
+            .forEach { it.addQueryParameter(apiEndpointUrl) }
 
         return GET(apiEndpointUrl.toString(), apiHeaders)
     }
 
     override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
 
-    // Workaround to allow "Open in browser" use the real URL.
-    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
-        return client.newCall(storyDetailsRequest(manga))
-            .asObservableSuccess()
-            .map { response ->
-                mangaDetailsParse(response).apply { initialized = true }
-            }
-    }
+    override fun getMangaUrl(manga: SManga): String = baseUrl + manga.url
 
-    private fun storyDetailsRequest(manga: SManga): Request {
+    override fun mangaDetailsRequest(manga: SManga): Request {
         val storySlug = manga.url.substringAfterLast("/")
 
         val apiHeaders = headersBuilder()
@@ -167,19 +123,10 @@ class SaikaiScan : HttpSource() {
         return GET(apiEndpointUrl, apiHeaders)
     }
 
-    override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
+    override fun mangaDetailsParse(response: Response): SManga {
         val result = response.parseAs<SaikaiScanPaginatedStoriesDto>()
-        val story = result.data!![0]
 
-        title = story.title
-        author = story.authors.joinToString { it.name }
-        artist = story.artists.joinToString { it.name }
-        thumbnail_url = "$IMAGE_SERVER_URL/${story.image}"
-        genre = story.genres.joinToString { it.name }
-        status = story.status!!.name.toStatus()
-        description = Jsoup.parse(story.synopsis)
-            .select("p")
-            .joinToString("\n\n") { it.text() }
+        return result.data!![0].toSManga()
     }
 
     override fun chapterListRequest(manga: SManga): Request {
@@ -205,19 +152,11 @@ class SaikaiScan : HttpSource() {
 
         return story.releases
             .filter { it.isActive == 1 }
-            .map { chapterFromObject(it, story.slug) }
+            .map { it.toSChapter(story.slug) }
             .sortedByDescending(SChapter::chapter_number)
     }
 
-    private fun chapterFromObject(obj: SaikaiScanReleaseDto, storySlug: String): SChapter =
-        SChapter.create().apply {
-            name = "Capítulo ${obj.chapter}" +
-                (if (obj.title.isNullOrEmpty().not()) " - ${obj.title}" else "")
-            chapter_number = obj.chapter.toFloatOrNull() ?: -1f
-            date_upload = obj.publishedAt.toDate()
-            scanlator = this@SaikaiScan.name
-            url = "/ler/comics/$storySlug/${obj.id}/${obj.slug}"
-        }
+    override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
 
     override fun pageListRequest(chapter: SChapter): Request {
         val releaseId = chapter.url
@@ -299,7 +238,7 @@ class SaikaiScan : HttpSource() {
         Genre("Xianxia", 7),
         Genre("Xuanhuan", 48),
         Genre("Yaoi", 41),
-        Genre("Yuri", 83)
+        Genre("Yuri", 83),
     )
 
     // fetch('https://api.saikai.com.br/api/countries?hasStories=1')
@@ -313,7 +252,7 @@ class SaikaiScan : HttpSource() {
         Country("Espanha", 199),
         Country("Estados Unidos da América", 1),
         Country("Japão", 109),
-        Country("Portugal", 173)
+        Country("Portugal", 173),
     )
 
     // fetch('https://api.saikai.com.br/api/countries?hasStories=1')
@@ -326,50 +265,37 @@ class SaikaiScan : HttpSource() {
         Status("Dropado", 6),
         Status("Em Andamento", 2),
         Status("Hiato", 4),
-        Status("Pausado", 3)
+        Status("Pausado", 3),
     )
 
     private fun getSortProperties(): List<SortProperty> = listOf(
         SortProperty("Título", "title"),
         SortProperty("Quantidade de capítulos", "releases_count"),
         SortProperty("Visualizações", "pageviews"),
-        SortProperty("Data de criação", "created_at")
+        SortProperty("Data de criação", "created_at"),
     )
 
     override fun getFilterList(): FilterList = FilterList(
         CountryFilter(getCountryList()),
         StatusFilter(getStatusList()),
         SortByFilter(getSortProperties()),
-        GenreFilter(getGenreList())
+        GenreFilter(getGenreList()),
     )
 
     private inline fun <reified T> Response.parseAs(): T = use {
-        json.decodeFromString(it.body?.string().orEmpty())
-    }
-
-    private fun String.toDate(): Long {
-        return runCatching { DATE_FORMATTER.parse(this)?.time }
-            .getOrNull() ?: 0L
-    }
-
-    private fun String.toStatus(): Int = when (this) {
-        "Concluído" -> SManga.COMPLETED
-        "Em Andamento" -> SManga.ONGOING
-        else -> SManga.UNKNOWN
+        json.decodeFromString(it.body.string())
     }
 
     companion object {
+        const val SOURCE_NAME = "Saikai Scan"
+
         private const val ACCEPT_IMAGE = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
         private const val ACCEPT_JSON = "application/json, text/plain, */*"
 
         private const val COMIC_FORMAT_ID = "2"
         private const val PER_PAGE = "12"
 
-        private val DATE_FORMATTER by lazy {
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'", Locale("pt", "BR"))
-        }
-
         private const val API_URL = "https://api.saikai.com.br"
-        private const val IMAGE_SERVER_URL = "https://s3-alpha.saikai.com.br"
+        const val IMAGE_SERVER_URL = "https://s3-alpha.saikai.com.br"
     }
 }

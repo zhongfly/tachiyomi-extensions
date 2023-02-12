@@ -14,7 +14,6 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
         val url = if (query.isNotEmpty()) {
             "$baseUrl/?do=search&subaction=search&story=$query&search_start=$page"
         } else {
-
             var genres = ""
             var order = ""
             var statusParam = true
@@ -34,6 +33,7 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
                         }
                     }
                     is Status -> status = arrayOf("", "all_done", "end", "ongoing", "new_ch")[filter.state]
+                    else -> {}
                 }
             }
 
@@ -47,6 +47,7 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
                                 arrayOf("&n=dateasc", "&n=favdesc", "&n=abcasc", "&n=chdesc")[filter.state!!.index]
                             }
                         }
+                        else -> {}
                     }
                 }
                 if (statusParam) {
@@ -64,6 +65,7 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
                                 arrayOf("manga/new&n=dateasc", "mostfavorites", "catalog", "sortch")[filter.state!!.index]
                             }
                         }
+                        else -> {}
                     }
                 }
                 if (statusParam) {
@@ -82,13 +84,13 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
     private class OrderBy : Filter.Sort(
         "Сортировка",
         arrayOf("Дата", "Популярность", "Имя", "Главы"),
-        Selection(1, false)
+        Selection(1, false),
     )
 
     override fun getFilterList() = FilterList(
         Status(),
         OrderBy(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private fun getGenreList() = listOf(
@@ -152,6 +154,6 @@ class YaoiChan : MultiChan("YaoiChan", "https://yaoi-chan.me", "ru") {
         Genre("юмор"),
         Genre("юри"),
         Genre("яой"),
-        Genre("ёнкома")
+        Genre("ёнкома"),
     )
 }

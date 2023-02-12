@@ -82,7 +82,7 @@ class VoyceMe : HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["voyce_series"]!!
             .let { json.decodeFromJsonElement<List<VoyceMeComic>>(it) }
@@ -112,7 +112,7 @@ class VoyceMe : HttpSource() {
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["voyce_series"]!!
             .let { json.decodeFromJsonElement<List<VoyceMeComic>>(it) }
@@ -143,7 +143,7 @@ class VoyceMe : HttpSource() {
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["voyce_series"]!!
             .let { json.decodeFromJsonElement<List<VoyceMeComic>>(it) }
@@ -186,7 +186,7 @@ class VoyceMe : HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         val comic = result["data"]!!.jsonObject["voyce_series"]!!.jsonArray[0].jsonObject
             .let { json.decodeFromJsonElement<VoyceMeComic>(it) }
 
@@ -223,7 +223,7 @@ class VoyceMe : HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         val comicBook = result["data"]!!.jsonObject["voyce_series"]!!.jsonArray[0].jsonObject
             .let { json.decodeFromJsonElement<VoyceMeComic>(it) }
 
@@ -266,7 +266,7 @@ class VoyceMe : HttpSource() {
         // GraphQL endpoints do not have the chapter images, so we need
         // to get the buildId to fetch the chapter from NextJS static data.
         val document = response.asJsoup()
-        val nextData = document.selectFirst("script#__NEXT_DATA__").data()
+        val nextData = document.selectFirst("script#__NEXT_DATA__")!!.data()
         val nextJson = json.parseToJsonElement(nextData).jsonObject
 
         val buildId = nextJson["buildId"]!!.jsonPrimitive.content
@@ -274,7 +274,7 @@ class VoyceMe : HttpSource() {
 
         val dataRequest = pageListApiRequest(buildId, chapterUrl)
         val dataResponse = client.newCall(dataRequest).execute()
-        val dataJson = json.parseToJsonElement(dataResponse.body!!.string()).jsonObject
+        val dataJson = json.parseToJsonElement(dataResponse.body.string()).jsonObject
 
         val comic = dataJson["pageProps"]!!.jsonObject["series"]!!
             .let { json.decodeFromJsonElement<VoyceMeComic>(it) }

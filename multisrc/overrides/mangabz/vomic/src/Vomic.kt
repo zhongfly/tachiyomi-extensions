@@ -62,16 +62,16 @@ class Vomic : MangabzTheme("vomic", ""), ConfigurableSource {
 
         val mangas = buildList {
             // ranking sidebar
-            addAll(document.selectFirst(Evaluator.Class("rank-list")).children())
+            addAll(document.selectFirst(Evaluator.Class("rank-list"))!!.children())
             // carousel list
-            addAll(document.selectFirst(Evaluator.Class("carousel-right-list")).children())
+            addAll(document.selectFirst(Evaluator.Class("carousel-right-list"))!!.children())
             // recommend list
-            addAll(document.select(Evaluator.Class("index-manga-item")))
+            addAll(document.select(Evaluator.Class("index-manga-item"))!!)
         }.map { element ->
             SManga.create().apply {
-                title = element.selectFirst(paragraph).text()
-                url = element.selectFirst(link).attr("href")
-                thumbnail_url = element.selectFirst(image).attr("src")
+                title = element.selectFirst(paragraph)!!.text()
+                url = element.selectFirst(link)!!.attr("href")
+                thumbnail_url = element.selectFirst(image)!!.attr("src")
             }
         }
 
@@ -95,7 +95,7 @@ class Vomic : MangabzTheme("vomic", ""), ConfigurableSource {
     override fun getChapterElements(document: Document): Elements {
         val chapterId = document.location().removeSuffix("_c/").substringAfterLast('/')
         val response = client.newCall(GET("$baseUrl/chapter-$chapterId-s2/", headers)).execute()
-        return Jsoup.parseBodyFragment(response.body!!.string()).body().children()
+        return Jsoup.parseBodyFragment(response.body.string()).body().children()
     }
 
     override val needPageCount = false
@@ -106,7 +106,7 @@ class Vomic : MangabzTheme("vomic", ""), ConfigurableSource {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val urls = response.body!!.string().run {
+        val urls = response.body.string().run {
             val left = indexOf('[')
             val right = lastIndexOf(']')
             if (left + 1 == right) return emptyList()

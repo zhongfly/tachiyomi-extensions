@@ -57,17 +57,19 @@ class Xinmeitulu : ParsedHttpSource() {
             val slug = query.removePrefix("SLUG:")
             client.newCall(GET("$baseUrl/photo/$slug", headers)).asObservableSuccess()
                 .map { response -> MangasPage(listOf(mangaDetailsParse(response.asJsoup())), false) }
-        } else super.fetchSearchManga(page, query, filters)
+        } else {
+            super.fetchSearchManga(page, query, filters)
+        }
     }
 
     // Details
 
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
-        setUrlWithoutDomain(document.selectFirst("link[rel=canonical]").attr("abs:href"))
+        setUrlWithoutDomain(document.selectFirst("link[rel=canonical]")!!.attr("abs:href"))
         title = document.select(".container > h1").text()
         description = document.select(".container > *:not(div)").text()
         status = SManga.COMPLETED
-        thumbnail_url = document.selectFirst("figure img").attr("abs:data-original")
+        thumbnail_url = document.selectFirst("figure img")!!.attr("abs:data-original")
     }
 
     // Chapters
@@ -75,7 +77,7 @@ class Xinmeitulu : ParsedHttpSource() {
     override fun chapterListSelector() = "html"
 
     override fun chapterFromElement(element: Element) = SChapter.create().apply {
-        setUrlWithoutDomain(element.selectFirst("link[rel=canonical]").attr("abs:href"))
+        setUrlWithoutDomain(element.selectFirst("link[rel=canonical]")!!.attr("abs:href"))
         name = element.select(".container > h1").text()
     }
 
@@ -90,7 +92,7 @@ class Xinmeitulu : ParsedHttpSource() {
         private fun contentTypeIntercept(chain: Interceptor.Chain): Response {
             val response = chain.proceed(chain.request())
             if (response.header("content-type")?.startsWith("image") == true) {
-                val body = response.body!!.source().asResponseBody(jpegMediaType)
+                val body = response.body.source().asResponseBody(jpegMediaType)
                 return response.newBuilder().body(body).build()
             }
             return response

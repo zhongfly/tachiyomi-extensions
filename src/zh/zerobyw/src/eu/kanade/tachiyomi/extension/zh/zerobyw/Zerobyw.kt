@@ -1,7 +1,12 @@
 package eu.kanade.tachiyomi.extension.zh.zerobyw
 
+import android.app.Application
+import android.content.SharedPreferences
 import android.net.Uri
+import androidx.preference.EditTextPreference
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
@@ -12,19 +17,27 @@ import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
-class Zerobyw : ParsedHttpSource() {
+class Zerobyw : ParsedHttpSource(), ConfigurableSource {
     override val name: String = "zero搬运网"
     override val lang: String = "zh"
     override val supportsLatest: Boolean = false
+    private val preferences: SharedPreferences =
+        Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
+
     // Url can be found at https://cdn.jsdelivr.net/gh/zerozzz123456/1/url.json
-    override val baseUrl: String = "http://www.zerobywgeat.com"
+    // or just search for "zerobyw" in google
+    private val defaultBaseUrl = "http://www.zerobywblac.com"
+
+    override val baseUrl = preferences.getString("ZEROBYW_BASEURL", defaultBaseUrl)!!
 
     // Popular
     // Website does not provide popular manga, this is actually latest manga
 
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/plugin.php?id=jameson_manhua&c=index&a=ku&&page=$page", headers)
-    override fun popularMangaNextPageSelector(): String? = "div.pg > a.nxt"
+    override fun popularMangaNextPageSelector(): String = "div.pg > a.nxt"
     override fun popularMangaSelector(): String = "div.uk-card"
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = getTitle(element.select("p.mt5 > a").text())
@@ -56,15 +69,16 @@ class Zerobyw : ParsedHttpSource() {
                 .appendQueryParameter("c", "index")
                 .appendQueryParameter("a", "ku")
             filters.forEach {
-                if (it is UriSelectFilterPath && it.toUri().second.isNotEmpty())
+                if (it is UriSelectFilterPath && it.toUri().second.isNotEmpty()) {
                     uri.appendQueryParameter(it.toUri().first, it.toUri().second)
+                }
             }
             uri.appendQueryParameter("page", page.toString())
         }
         return GET(uri.toString(), headers)
     }
 
-    override fun searchMangaNextPageSelector(): String? = "div.pg > a.nxt"
+    override fun searchMangaNextPageSelector(): String = "div.pg > a.nxt"
     override fun searchMangaSelector(): String = "a.uk-card, div.uk-card"
     override fun searchMangaFromElement(element: Element): SManga = SManga.create().apply {
         title = getTitle(element.select("p.mt5").text())
@@ -77,11 +91,11 @@ class Zerobyw : ParsedHttpSource() {
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
         title = getTitle(document.select("li.uk-active > h3.uk-heading-line").text())
         thumbnail_url = document.select("div.uk-width-medium > img").attr("abs:src")
-        author = document.selectFirst("div.cl > a.uk-label").text().substring(3)
+        author = document.selectFirst("div.cl > a.uk-label")!!.text().substring(3)
         artist = author
         genre = document.select("div.cl > a.uk-label, div.cl > span.uk-label").eachText().joinToString(", ")
         description = document.select("li > div.uk-alert").html().replace("<br>", "")
-        status = when (document.select("div.cl > span.uk-label").last().text()) {
+        status = when (document.select("div.cl > span.uk-label").last()!!.text()) {
             "连载中" -> SManga.ONGOING
             "已完结" -> SManga.COMPLETED
             else -> SManga.UNKNOWN
@@ -126,7 +140,7 @@ class Zerobyw : ParsedHttpSource() {
         Filter.Header("过滤器将被忽略"),
         CategoryFilter(),
         StatusFilter(),
-        AttributeFilter()
+        AttributeFilter(),
     )
 
     private class CategoryFilter : UriSelectFilterPath(
@@ -147,8 +161,8 @@ class Zerobyw : ParsedHttpSource() {
             Pair("29", "体育"),
             Pair("34", "机战"),
             Pair("35", "职业"),
-            Pair("36", "汉化组跟上，不再更新")
-        )
+            Pair("36", "汉化组跟上，不再更新"),
+        ),
     )
 
     private class StatusFilter : UriSelectFilterPath(
@@ -157,8 +171,8 @@ class Zerobyw : ParsedHttpSource() {
         arrayOf(
             Pair("", "全部"),
             Pair("0", "连载中"),
-            Pair("1", "已完结")
-        )
+            Pair("1", "已完结"),
+        ),
     )
 
     private class AttributeFilter : UriSelectFilterPath(
@@ -168,8 +182,8 @@ class Zerobyw : ParsedHttpSource() {
             Pair("", "全部"),
             Pair("一半中文一半生肉", "一半中文一半生肉"),
             Pair("全生肉", "全生肉"),
-            Pair("全中文", "全中文")
-        )
+            Pair("全中文", "全中文"),
+        ),
     )
 
     /**
@@ -180,7 +194,7 @@ class Zerobyw : ParsedHttpSource() {
     private open class UriSelectFilterPath(
         val key: String,
         displayName: String,
-        val vals: Array<Pair<String, String>>
+        val vals: Array<Pair<String, String>>,
     ) : Filter.Select<String>(displayName, vals.map { it.second }.toTypedArray()) {
         fun toUri() = Pair(key, vals[state].first)
     }
@@ -192,5 +206,16 @@ class Zerobyw : ParsedHttpSource() {
         } else {
             title.substringBefore("【")
         }
+    }
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        EditTextPreference(screen.context)
+            .apply {
+                key = "ZEROBYW_BASEURL"
+                title = "zerobyw网址"
+                setDefaultValue(defaultBaseUrl)
+                summary = "可在 https://cdn.jsdelivr.net/gh/zerozzz123456/1/url.json 中找到网址，或者通过google搜索\"zerobyw\"得到"
+            }
+            .let { screen.addPreference(it) }
     }
 }

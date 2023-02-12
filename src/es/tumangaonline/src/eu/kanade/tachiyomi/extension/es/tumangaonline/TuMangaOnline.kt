@@ -56,12 +56,12 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         .rateLimitHost(
             baseUrl.toHttpUrlOrNull()!!,
             preferences.getString(WEB_RATELIMIT_PREF, WEB_RATELIMIT_PREF_DEFAULT_VALUE)!!.toInt(),
-            60
+            60,
         )
         .rateLimitHost(
             imageCDNUrl.toHttpUrlOrNull()!!,
             preferences.getString(IMAGE_CDN_RATELIMIT_PREF, IMAGE_CDN_RATELIMIT_PREF_DEFAULT_VALUE)!!.toInt(),
-            60
+            60,
         )
         .build()
 
@@ -70,7 +70,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
 
     override fun popularMangaRequest(page: Int) = GET("$baseUrl/library?order_item=likes_count&order_dir=desc&filter_by=title$getSFWUrlPart&_pg=1&page=$page", headers)
 
-    override fun popularMangaNextPageSelector() = "a.page-link"
+    override fun popularMangaNextPageSelector() = "a[rel='next']"
 
     override fun popularMangaSelector() = "div.element"
 
@@ -123,7 +123,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
                         url.addQueryParameter("order_item", SORTABLES[filter.state!!.index].second)
                         url.addQueryParameter(
                             "order_dir",
-                            if (filter.state!!.ascending) { "asc" } else { "desc" }
+                            if (filter.state!!.ascending) { "asc" } else { "desc" },
                         )
                     }
                 }
@@ -148,6 +148,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
                         }
                     }
                 }
+                else -> {}
             }
         }
         return GET(url.build().toString(), headers)
@@ -158,14 +159,14 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
     override fun mangaDetailsParse(document: Document) = SManga.create().apply {
         title = document.select("h2.element-subtitle").text()
         document.select("h5.card-title").let {
-            author = it?.first()?.attr("title")?.substringAfter(", ")
-            artist = it?.last()?.attr("title")?.substringAfter(", ")
+            author = it.first()?.attr("title")?.substringAfter(", ")
+            artist = it.last()?.attr("title")?.substringAfter(", ")
         }
         genre = document.select("a.py-2").joinToString(", ") {
             it.text()
         }
-        description = document.select("p.element-description")?.text()
-        status = parseStatus(document.select("span.book-status")?.text().orEmpty())
+        description = document.select("p.element-description").text()
+        status = parseStatus(document.select("span.book-status").text().orEmpty())
         thumbnail_url = document.select(".book-thumbnail").attr("src")
     }
     private fun parseStatus(status: String) = when {
@@ -183,17 +184,12 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         // Regular list of chapters
         val chapters = mutableListOf<SChapter>()
         document.select(regularChapterListSelector()).forEach { chapelement ->
-            val chapternumber = chapelement.select("a.btn-collapse").text()
-                .substringBefore(":")
-                .substringAfter("Capítulo")
-                .trim()
-                .toFloat()
-            val chaptername = chapelement.select("div.col-10.text-truncate").text()
+            val chaptername = chapelement.select("div.col-10.text-truncate").text().replace("&nbsp;", " ").trim()
             val scanelement = chapelement.select("ul.chapter-list > li")
             if (getScanlatorPref()) {
-                scanelement.forEach { chapters.add(regularChapterFromElement(it, chaptername, chapternumber)) }
+                scanelement.forEach { chapters.add(regularChapterFromElement(it, chaptername)) }
             } else {
-                scanelement.first { chapters.add(regularChapterFromElement(it, chaptername, chapternumber)) }
+                scanelement.first { chapters.add(regularChapterFromElement(it, chaptername)) }
             }
         }
         return chapters
@@ -204,58 +200,66 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
     private fun oneShotChapterFromElement(element: Element) = SChapter.create().apply {
         url = element.select("div.row > .text-right > a").attr("href")
         name = "One Shot"
-        scanlator = element.select("div.col-md-6.text-truncate")?.text()
+        scanlator = element.select("div.col-md-6.text-truncate").text()
         date_upload = element.select("span.badge.badge-primary.p-2").first()?.text()?.let { parseChapterDate(it) }
             ?: 0
     }
     private fun regularChapterListSelector() = "div.chapters > ul.list-group li.p-0.list-group-item"
-    private fun regularChapterFromElement(element: Element, chName: String, number: Float) = SChapter.create().apply {
+    private fun regularChapterFromElement(element: Element, chName: String) = SChapter.create().apply {
         url = element.select("div.row > .text-right > a").attr("href")
         name = chName
-        chapter_number = number
-        scanlator = element.select("div.col-md-6.text-truncate")?.text()
+        scanlator = element.select("div.col-md-6.text-truncate").text()
         date_upload = element.select("span.badge.badge-primary.p-2").first()?.text()?.let { parseChapterDate(it) }
             ?: 0
     }
     private fun parseChapterDate(date: String): Long = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(date)?.time
         ?: 0
     override fun pageListRequest(chapter: SChapter): Request {
-        val currentUrl = client.newCall(GET(chapter.url, headers)).execute().asJsoup().body().baseUri()
-        // Get /cascade instead of /paginate to get all pages at once
+        return GET(chapter.url, headers)
+    }
+    override fun pageListParse(document: Document): List<Page> = mutableListOf<Page>().apply {
+        val currentUrl = document.body().baseUri()
+
         val newUrl = if (getPageMethodPref() == "cascade" && currentUrl.contains("paginated")) {
             currentUrl.substringBefore("paginated") + "cascade"
         } else if (getPageMethodPref() == "paginated" && currentUrl.contains("cascade")) {
             currentUrl.substringBefore("cascade") + "paginated"
-        } else currentUrl
-        return GET(newUrl, headers)
-    }
-    override fun pageListParse(document: Document): List<Page> = mutableListOf<Page>().apply {
+        } else {
+            currentUrl
+        }
+
+        val doc = client.newCall(GET(newUrl, headers)).execute().asJsoup()
+
         if (getPageMethodPref() == "cascade") {
-            document.select("div.viewer-container img").forEach {
+            doc.select("div.viewer-container img").forEach {
                 add(
                     Page(
                         size,
                         "",
                         it.let {
-                            if (it.hasAttr("data-src"))
-                                it.attr("abs:data-src") else it.attr("abs:src")
-                        }
-                    )
+                            if (it.hasAttr("data-src")) {
+                                it.attr("abs:data-src")
+                            } else {
+                                it.attr("abs:src")
+                            }
+                        },
+                    ),
                 )
             }
         } else {
-            val pageList = document.select("#viewer-pages-select").first().select("option").map { it.attr("value").toInt() }
-            val url = document.baseUri()
+            val pageList = doc.select("#viewer-pages-select").first()!!.select("option").map { it.attr("value").toInt() }
+            val url = doc.baseUri()
             pageList.forEach {
                 add(Page(it, "$url/$it"))
             }
         }
     }
+
     // Note: At this moment (24/08/2021) it's necessary to make the image request with headers to prevent 403.
     override fun imageRequest(page: Page) = GET(page.imageUrl!!, headers)
 
     override fun imageUrlParse(document: Document): String {
-        return document.select("div.viewer-container > div.viewer-image-container > img.viewer-image").attr("src")
+        return document.select("div.viewer-container > div.img-container > img.viewer-image").attr("src")
     }
 
     private fun searchMangaByIdRequest(id: String) = GET("$baseUrl/$PREFIX_LIBRARY/$id", headers)
@@ -290,8 +294,8 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             Pair("Novela", "novel"),
             Pair("One shot", "one_shot"),
             Pair("Doujinshi", "doujinshi"),
-            Pair("Oel", "oel")
-        )
+            Pair("Oel", "oel"),
+        ),
     )
 
     private class Status : UriPartFilter(
@@ -301,8 +305,8 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             Pair("Publicándose", "publishing"),
             Pair("Finalizado", "ended"),
             Pair("Cancelado", "cancelled"),
-            Pair("Pausado", "on_hold")
-        )
+            Pair("Pausado", "on_hold"),
+        ),
     )
 
     private class TranslationStatus : UriPartFilter(
@@ -311,8 +315,8 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             Pair("Ver todo", ""),
             Pair("Activo", "publishing"),
             Pair("Finalizado", "ended"),
-            Pair("Abandonado", "cancelled")
-        )
+            Pair("Abandonado", "cancelled"),
+        ),
     )
 
     private class Demography : UriPartFilter(
@@ -323,8 +327,8 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             Pair("Shoujo", "shoujo"),
             Pair("Shounen", "shounen"),
             Pair("Josei", "josei"),
-            Pair("Kodomo", "kodomo")
-        )
+            Pair("Kodomo", "kodomo"),
+        ),
     )
 
     private class FilterBy : UriPartFilter(
@@ -332,14 +336,14 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         arrayOf(
             Pair("Título", "title"),
             Pair("Autor", "author"),
-            Pair("Compañia", "company")
-        )
+            Pair("Compañia", "company"),
+        ),
     )
 
     class SortBy : Filter.Sort(
         "Ordenar por",
         SORTABLES.map { it.first }.toTypedArray(),
-        Selection(0, false)
+        Selection(0, false),
     )
 
     private class ContentType(name: String, val id: String) : Filter.TriState(name)
@@ -367,7 +371,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         Filter.Separator(),
         ContentTypeList(getContentTypeList()),
         Filter.Separator(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     // Array.from(document.querySelectorAll('#books-genders .col-auto .custom-control'))
@@ -422,14 +426,14 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         Genre("Realidad", "45"),
         Genre("Telenovela", "46"),
         Genre("Guerra", "47"),
-        Genre("Oeste", "48")
+        Genre("Oeste", "48"),
     )
 
     private fun getContentTypeList() = listOf(
         ContentType("Webcomic", "webcomic"),
         ContentType("Yonkoma", "yonkoma"),
         ContentType("Amateur", "amateur"),
-        ContentType("Erótico", "erotic")
+        ContentType("Erótico", "erotic"),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :
@@ -438,8 +442,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
     }
 
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-
-        val SFWModePref = androidx.preference.CheckBoxPreference(screen.context).apply {
+        val sfwModePref = androidx.preference.CheckBoxPreference(screen.context).apply {
             key = SFW_MODE_PREF
             title = SFW_MODE_PREF_TITLE
             summary = SFW_MODE_PREF_SUMMARY
@@ -521,7 +524,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             }
         }
 
-        screen.addPreference(SFWModePref)
+        screen.addPreference(sfwModePref)
         screen.addPreference(scanlatorPref)
         screen.addPreference(pageMethodPref)
         screen.addPreference(apiRateLimitPreference)
@@ -552,15 +555,19 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
         private const val PAGE_METHOD_PREF_DEFAULT_VALUE = "cascade"
 
         private const val WEB_RATELIMIT_PREF = "webRatelimitPreference"
+
         // Ratelimit permits per second for main website
         private const val WEB_RATELIMIT_PREF_TITLE = "Ratelimit por minuto para el sitio web"
+
         // This value affects network request amount to TMO url. Lower this value may reduce the chance to get HTTP 429 error, but loading speed will be slower too. Tachiyomi restart required. \nCurrent value: %s
         private const val WEB_RATELIMIT_PREF_SUMMARY = "Este valor afecta la cantidad de solicitudes de red a la URL de TMO. Reducir este valor puede disminuir la posibilidad de obtener un error HTTP 429, pero la velocidad de descarga será más lenta. Se requiere reiniciar Tachiyomi. \nValor actual: %s"
         private const val WEB_RATELIMIT_PREF_DEFAULT_VALUE = "10"
 
         private const val IMAGE_CDN_RATELIMIT_PREF = "imgCDNRatelimitPreference"
+
         // Ratelimit permits per second for image CDN
         private const val IMAGE_CDN_RATELIMIT_PREF_TITLE = "Ratelimit por minuto para descarga de imágenes"
+
         // This value affects network request amount for loading image. Lower this value may reduce the chance to get error when loading image, but loading speed will be slower too. Tachiyomi restart required. \nCurrent value: %s
         private const val IMAGE_CDN_RATELIMIT_PREF_SUMMARY = "Este valor afecta la cantidad de solicitudes de red para descargar imágenes. Reducir este valor puede disminuir errores al cargar imagenes, pero la velocidad de descarga será más lenta. Se requiere reiniciar Tachiyomi. \nValor actual: %s"
         private const val IMAGE_CDN_RATELIMIT_PREF_DEFAULT_VALUE = "10"
@@ -576,7 +583,7 @@ class TuMangaOnline : ConfigurableSource, ParsedHttpSource() {
             Pair("Puntuación", "score"),
             Pair("Creación", "creation"),
             Pair("Fecha estreno", "release_date"),
-            Pair("Núm. Capítulos", "num_chapters")
+            Pair("Núm. Capítulos", "num_chapters"),
         )
     }
 }

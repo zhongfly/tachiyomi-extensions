@@ -39,10 +39,12 @@ class MangaCross : HttpSource() {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList) =
         if (query.isNotEmpty()) {
             GET("$baseUrl/api/comics/keywords/$query.json", headers)
-        } else when (val tag = filters.filterIsInstance<TagFilter>().firstOrNull()?.getTag()) {
-            null -> popularMangaRequest(page)
-            is MCComicCategory -> GET("$baseUrl/api/comics/categories/${tag.name}.json", headers)
-            is MCComicGenre -> GET("$baseUrl/api/comics/tags/${tag.name}.json", headers)
+        } else {
+            when (val tag = filters.filterIsInstance<TagFilter>().firstOrNull()?.getTag()) {
+                null -> popularMangaRequest(page)
+                is MCComicCategory -> GET("$baseUrl/api/comics/categories/${tag.name}.json", headers)
+                is MCComicGenre -> GET("$baseUrl/api/comics/tags/${tag.name}.json", headers)
+            }
         }
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
@@ -91,14 +93,16 @@ class MangaCross : HttpSource() {
     }
 
     override fun getFilterList() =
-        if (::tags.isInitialized) FilterList(
-            Filter.Header("NOTE: Ignored if using text search!"),
-            TagFilter("Tag", tags)
-        ) else {
+        if (::tags.isInitialized) {
+            FilterList(
+                Filter.Header("NOTE: Ignored if using text search!"),
+                TagFilter("Tag", tags),
+            )
+        } else {
             fetchTags()
             FilterList(
                 Filter.Header("Fetching tags..."),
-                Filter.Header("Go back to previous screen and retry.")
+                Filter.Header("Go back to previous screen and retry."),
             )
         }
 
@@ -107,5 +111,5 @@ class MangaCross : HttpSource() {
         fun getTag() = tags[state].second
     }
 
-    private inline fun <reified T> Response.parseAs(): T = json.decodeFromStream(this.body!!.byteStream())
+    private inline fun <reified T> Response.parseAs(): T = json.decodeFromStream(this.body.byteStream())
 }

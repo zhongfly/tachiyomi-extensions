@@ -41,15 +41,15 @@ class CloneManga : ParsedHttpSource() {
     override fun popularMangaFromElement(element: Element): SManga {
         val attr = element.getElementsByClass("comicPreview").attr("style")
         return SManga.create().apply {
-            title = element.select("h3").first().text()
+            title = element.select("h3").first()!!.text()
             artist = "Dan Kim"
             author = artist
             status = SManga.UNKNOWN
-            url = element.select("a").first().attr("href")
+            url = element.select("a").first()!!.attr("href")
             description = element.select("h4").first()?.text() ?: ""
             thumbnail_url = baseUrl + attr.substring(
                 attr.indexOf("site/themes"),
-                attr.indexOf(")")
+                attr.indexOf(")"),
             )
         }
     }
@@ -67,9 +67,9 @@ class CloneManga : ParsedHttpSource() {
         val document = response.asJsoup()
         val series = document.location()
         val numChapters = Regex(
-            pattern = "&page=(.*)&lang="
+            pattern = "&page=(.*)&lang=",
         ).findAll(
-            input = document.getElementsByTag("script")[3].toString()
+            input = document.getElementsByTag("script")[3].toString(),
         )
             .elementAt(3).destructured.component1()
             .toInt()
@@ -94,7 +94,7 @@ class CloneManga : ParsedHttpSource() {
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
         val imgAbsoluteUrl = document.getElementsByClass("subsectionContainer")[0]
-            .select("img").first().absUrl("src")
+            .select("img").first()!!.absUrl("src")
         // List of pages will always contain only one page
         return listOf(Page(1, "", imgAbsoluteUrl))
     }

@@ -38,7 +38,7 @@ abstract class ZManga(
     override fun popularMangaFromElement(element: Element): SManga {
         return SManga.create().apply {
             setUrlWithoutDomain(element.select("div.flexbox2-content a").attr("href"))
-            title = element.select("div.flexbox2-title > span").first().text()
+            title = element.select("div.flexbox2-title > span").first()!!.text()
             thumbnail_url = element.select("img").attr("abs:src")
         }
     }
@@ -93,6 +93,7 @@ abstract class ZManga(
                         url = "$baseUrl$projectPageString/page/$page".toHttpUrlOrNull()!!.newBuilder()
                     }
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -161,7 +162,7 @@ abstract class ZManga(
     override fun chapterFromElement(element: Element): SChapter {
         return SChapter.create().apply {
             setUrlWithoutDomain(element.attr("href"))
-            name = element.select("span").first().ownText()
+            name = element.select("span").first()!!.ownText()
             date_upload = parseDate(element.select("span.date").text())
         }
     }
@@ -197,7 +198,7 @@ abstract class ZManga(
                     Filter.Header("NOTE: cant be used with other filter!"),
                     Filter.Header("$name Project List page"),
                     ProjectFilter(),
-                )
+                ),
             )
         }
         return FilterList(filters)
@@ -207,8 +208,8 @@ abstract class ZManga(
         "Filter Project",
         arrayOf(
             Pair("Show all manga", ""),
-            Pair("Show only project manga", "project-filter-on")
-        )
+            Pair("Show only project manga", "project-filter-on"),
+        ),
     )
 
     private class AuthorFilter : Filter.Text("Author")
@@ -225,8 +226,8 @@ abstract class ZManga(
             Pair("Manhua", "Manhua"),
             Pair("Manhwa", "Manhwa"),
             Pair("One-Shot", "One-Shot"),
-            Pair("Doujin", "Doujin")
-        )
+            Pair("Doujin", "Doujin"),
+        ),
     )
     private class OrderByFilter : UriPartFilter(
         "Order By",
@@ -237,8 +238,8 @@ abstract class ZManga(
             Pair("Latest Update", "update"),
             Pair("Latest Added", "latest"),
             Pair("Popular", "popular"),
-            Pair("Rating", "rating")
-        )
+            Pair("Rating", "rating"),
+        ),
     )
 
     private fun getGenreList() = listOf(
@@ -296,7 +297,7 @@ abstract class ZManga(
         Tag("tragedy", "Tragedy"),
         Tag("vampire", "Vampire"),
         Tag("webtoons", "Webtoons"),
-        Tag("yuri", "Yuri")
+        Tag("yuri", "Yuri"),
     )
 
     open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :

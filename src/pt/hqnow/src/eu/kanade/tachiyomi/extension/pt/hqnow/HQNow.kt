@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.pt.hqnow
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -22,7 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import rx.Observable
 import uy.kohesive.injekt.injectLazy
 import java.text.Normalizer
 import java.util.Locale
@@ -86,12 +84,12 @@ class HQNow : HttpSource() {
                 put("orderByViews", true)
                 put("loadCovers", true)
                 put("limit", 300)
-            }
+            },
         )
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["getHqsByFilters"]!!
             .let { json.decodeFromJsonElement<List<HqNowComicBookDto>>(it) }
@@ -120,7 +118,7 @@ class HQNow : HttpSource() {
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["getRecentlyUpdatedHqs"]!!
             .let { json.decodeFromJsonElement<List<HqNowComicBookDto>>(it) }
@@ -150,12 +148,12 @@ class HQNow : HttpSource() {
             operationName = "getHqsByName",
             variables = buildJsonObject {
                 put("name", query)
-            }
+            },
         )
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val comicList = result["data"]!!.jsonObject["getHqsByName"]!!
             .let { json.decodeFromJsonElement<List<HqNowComicBookDto>>(it) }
@@ -164,16 +162,9 @@ class HQNow : HttpSource() {
         return MangasPage(comicList, hasNextPage = false)
     }
 
-    // Workaround to allow "Open in browser" use the real URL.
-    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
-        return client.newCall(mangaDetailsApiRequest(manga))
-            .asObservableSuccess()
-            .map { response ->
-                mangaDetailsParse(response).apply { initialized = true }
-            }
-    }
+    override fun getMangaUrl(manga: SManga): String = baseUrl + manga.url
 
-    private fun mangaDetailsApiRequest(manga: SManga): Request {
+    override fun mangaDetailsRequest(manga: SManga): Request {
         val comicBookId = manga.url.substringAfter("/hq/").substringBefore("/")
 
         val query = buildQuery {
@@ -203,12 +194,12 @@ class HQNow : HttpSource() {
             operationName = "getHqsById",
             variables = buildJsonObject {
                 put("id", comicBookId.toInt())
-            }
+            },
         )
     }
 
     override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         val comicBook = result["data"]!!.jsonObject["getHqsById"]!!.jsonArray[0].jsonObject
             .let { json.decodeFromJsonElement<HqNowComicBookDto>(it) }
 
@@ -219,10 +210,10 @@ class HQNow : HttpSource() {
         status = comicBook.status.orEmpty().toStatus()
     }
 
-    override fun chapterListRequest(manga: SManga): Request = mangaDetailsApiRequest(manga)
+    override fun chapterListRequest(manga: SManga): Request = mangaDetailsRequest(manga)
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         val comicBook = result["data"]!!.jsonObject["getHqsById"]!!.jsonArray[0].jsonObject
             .let { json.decodeFromJsonElement<HqNowComicBookDto>(it) }
 
@@ -239,7 +230,7 @@ class HQNow : HttpSource() {
                 "/chapter/${chapter.id}/page/1"
         }
 
-    // Pages
+    override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
 
     override fun pageListRequest(chapter: SChapter): Request {
         val chapterId = chapter.url.substringAfter("/chapter/").substringBefore("/")
@@ -264,12 +255,12 @@ class HQNow : HttpSource() {
             operationName = "getChapterById",
             variables = buildJsonObject {
                 put("chapterId", chapterId.toInt())
-            }
+            },
         )
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
 
         val chapterDto = result["data"]!!.jsonObject["getChapterById"]!!
             .let { json.decodeFromJsonElement<HqNowChapterDto>(it) }

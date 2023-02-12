@@ -17,13 +17,13 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.select.Evaluator
 import rx.Observable
-import rx.Single
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.text.SimpleDateFormat
@@ -45,30 +45,36 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
     override val supportsLatest = true
 
     private val bannerInterceptor = BaoziBanner(
-        level = preferences.getString(BaoziBanner.PREF, DEFAULT_LEVEL)!!.toInt()
+        level = preferences.getString(BaoziBanner.PREF, DEFAULT_LEVEL)!!.toInt(),
     )
 
-    override val client = network.client.newBuilder()
+    override val client = network.cloudflareClient.newBuilder()
         .rateLimit(2)
         .addInterceptor(bannerInterceptor)
+        .addNetworkInterceptor(MissingImageInterceptor)
         .build()
+
+    override fun headersBuilder() = super.headersBuilder()
+        .add("Referer", "$baseUrl/")
 
     override fun chapterListSelector() = throw UnsupportedOperationException("Not used.")
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()
-        return if (document.select(".l-box > .pure-g").size == 1) { // only latest chapters
-            document.select(".l-box > .pure-g > div")
+        val fullListTitle = document.selectFirst(".section-title:containsOwn(章节目录), .section-title:containsOwn(章節目錄)")
+        return if (fullListTitle == null) { // only latest chapters
+            document.select(Evaluator.Class("comics-chapters"))
         } else {
             // chapters are listed oldest to newest in the source
-            document.select(".l-box > .pure-g[id^=chapter] > div").reversed()
+            fullListTitle.parent()!!.select(Evaluator.Class("comics-chapters")).reversed()
         }.map { chapterFromElement(it) }.apply {
             val chapterOrderPref = preferences.getString(CHAPTER_ORDER_PREF, CHAPTER_ORDER_DISABLED)
             if (chapterOrderPref != CHAPTER_ORDER_DISABLED) {
                 val isAggressive = chapterOrderPref == CHAPTER_ORDER_AGGRESSIVE
                 forEach {
-                    if (isAggressive || it.name.any(Char::isDigit))
+                    if (isAggressive || it.name.any(Char::isDigit)) {
                         it.url = it.url + '#' + it.name // += will use one more StringBuilder
+                    }
                 }
             }
             if (!isNewDateLogic) return@apply
@@ -91,9 +97,9 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
 
     override fun popularMangaFromElement(element: Element): SManga {
         return SManga.create().apply {
-            setUrlWithoutDomain(element.attr("href")!!.trim())
-            title = element.attr("title")!!.trim()
-            thumbnail_url = element.select("> amp-img").attr("src")!!.trim()
+            setUrlWithoutDomain(element.attr("href").trim())
+            title = element.attr("title").trim()
+            thumbnail_url = element.select("> amp-img").attr("src").trim()
         }
     }
 
@@ -118,42 +124,40 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
 
     override fun mangaDetailsParse(document: Document): SManga {
         return SManga.create().apply {
-            title = document.select("h1.comics-detail__title").text().trim()
+            title = document.select("h1.comics-detail__title").text()
             thumbnail_url = document.select("div.pure-g div > amp-img").attr("src").trim()
-            author = document.select("h2.comics-detail__author").text().trim()
-            description = document.select("p.comics-detail__desc").text().trim()
-            status = when (document.selectFirst("div.tag-list > span.tag").text().trim()) {
-                "连载中" -> SManga.ONGOING
-                "已完结" -> SManga.COMPLETED
-                "連載中" -> SManga.ONGOING
-                "已完結" -> SManga.COMPLETED
+            author = document.select("h2.comics-detail__author").text()
+            description = document.select("p.comics-detail__desc").text()
+            status = when (document.selectFirst("div.tag-list > span.tag")!!.text()) {
+                "连载中", "連載中" -> SManga.ONGOING
+                "已完结", "已完結" -> SManga.COMPLETED
                 else -> SManga.UNKNOWN
             }
         }
     }
 
-    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> = Single.create<List<Page>> {
+    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> = Observable.fromCallable {
         val pageNumberSelector = Evaluator.Class("comic-text__amp")
         val pageList = ArrayList<Page>(0)
         var url = baseUrl + chapter.url
-        var pageCount = 0
         var i = 0
-        do {
+        while (true) {
             val document = client.newCall(GET(url, headers)).execute().asJsoup()
-            if (i == 0) {
-                pageCount = document.selectFirst(pageNumberSelector)
-                    ?.run { text().substringAfter('/').toInt() } ?: break
-                pageList.ensureCapacity(pageCount)
-            }
             document.select(".comic-contain amp-img").dropWhile { element ->
-                element.selectFirst(pageNumberSelector).text().substringBefore('/').toInt() <= i
+                element.selectFirst(pageNumberSelector)!!.text().substringBefore('/').toInt() <= i
             }.mapTo(pageList) { element ->
                 Page(i++, imageUrl = element.attr("src"))
             }
-            url = document.selectFirst(Evaluator.Id("next-chapter"))?.attr("href") ?: break
-        } while (i < pageCount)
-        it.onSuccess(pageList)
-    }.toObservable()
+            url = document.selectFirst(Evaluator.Id("next-chapter"))
+                ?.takeIf {
+                    val text = it.text()
+                    text == "下一页" || text == "下一頁"
+                }
+                ?.attr("href")
+                ?: break
+        }
+        pageList
+    }
 
     override fun pageListParse(document: Document) = throw UnsupportedOperationException("Not used.")
 
@@ -187,7 +191,12 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         // impossible to search a manga and use the filters
         return if (query.isNotEmpty()) {
-            GET("$baseUrl/search?q=$query", headers)
+            val baseUrl = baseUrl.replace("webmota.com", "baozimh.com")
+            val url = baseUrl.toHttpUrl().newBuilder()
+                .addEncodedPathSegment("search")
+                .addQueryParameter("q", query)
+                .toString()
+            GET(url, headers)
         } else {
             val parts = filters.filterIsInstance<UriPartFilter>().joinToString("&") { it.toUriPart() }
             GET("$baseUrl/classify?page=$page&$parts", headers)
@@ -220,7 +229,8 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
             entries = MIRRORS
             entryValues = MIRRORS
             summary = "已选择：%s\n" +
-                "重启生效，切换简繁体后需要迁移才能刷新漫画标题。"
+                "重启生效，切换简繁体后需要迁移才能刷新漫画标题。\n" +
+                "搜索漫画时自动使用 baozimh.com 域名以避免出错。"
             setDefaultValue(MIRRORS[0])
         }.let { screen.addPreference(it) }
 
@@ -256,9 +266,12 @@ class Baozi : ParsedHttpSource(), ConfigurableSource {
 
         private const val MIRROR_PREF = "MIRROR"
         private val MIRRORS = arrayOf(
-            "cn.baozimh.com", "cn.webmota.com",
-            "tw.baozimh.com", "tw.webmota.com",
-            "www.baozimh.com", "www.webmota.com",
+            "cn.baozimh.com",
+            "cn.webmota.com",
+            "tw.baozimh.com",
+            "tw.webmota.com",
+            "www.baozimh.com",
+            "www.webmota.com",
         )
 
         private const val DEFAULT_LEVEL = BaoziBanner.NORMAL.toString()

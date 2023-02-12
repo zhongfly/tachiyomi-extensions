@@ -21,11 +21,14 @@ class Nudemoon : ParsedHttpSource() {
 
     override val name = "Nude-Moon"
 
-    override val baseUrl = "https://nude-moon.me"
+    override val baseUrl = "https://nude-moon.org"
 
     override val lang = "ru"
 
     override val supportsLatest = true
+
+    private val dateParseRu = SimpleDateFormat("d MMMM yyyy", Locale("ru"))
+    private val dateParseSlash = SimpleDateFormat("d/MM/yyyy", Locale("ru"))
 
     private val cookieManager by lazy { CookieManager.getInstance() }
 
@@ -95,7 +98,7 @@ class Nudemoon : ParsedHttpSource() {
                         order = arrayOf(
                             "all_manga?date",
                             "all_manga?views",
-                            "all_manga?like"
+                            "all_manga?like",
                         )[filter.state!!.index]
                     }
                 }
@@ -137,12 +140,12 @@ class Nudemoon : ParsedHttpSource() {
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create()
-        val infoElement = document.select("table.news_pic2").first()
-        manga.title = document.select("h1").first().text().substringBefore(" / ").substringBefore(" №")
+        val infoElement = document.select("table.news_pic2").first()!!
+        manga.title = document.select("h1").first()!!.text().substringBefore(" / ").substringBefore(" №")
         manga.author = infoElement.select("a[href*=mangaka]").text()
         manga.genre = infoElement.select("div.tag-links a").joinToString { it.text() }
         manga.description = document.select(".description").text()
-        manga.thumbnail_url = document.selectFirst("meta[property=og:image]").attr("abs:content")
+        manga.thumbnail_url = document.selectFirst("meta[property=og:image]")!!.attr("abs:content")
 
         return manga
     }
@@ -159,12 +162,28 @@ class Nudemoon : ParsedHttpSource() {
         val allPageElement = document.select("td.button a:contains(Все главы)")
 
         if (allPageElement.isEmpty()) {
-            add(chapterFromElement(document))
+            add(
+                SChapter.create().apply {
+                    val chapterName = document.select("table td.bg_style1 h1").text()
+                    val chapterUrl = response.request.url.toString()
+                    setUrlWithoutDomain(chapterUrl)
+                    name = "$chapterName Сингл"
+                    scanlator = document.select("table.news_pic2 a[href*=perevod]").text()
+                    date_upload = document.select("table.news_pic2 span.small2:contains(/)").text().let {
+                        try {
+                            dateParseSlash.parse(it)?.time ?: 0L
+                        } catch (e: Exception) {
+                            0
+                        }
+                    }
+                    chapter_number = 0F
+                },
+            )
         } else {
             var pageListDocument: Document
             val pageListLink = allPageElement.attr("href")
             client.newCall(
-                GET(baseUrl + pageListLink, headers)
+                GET(baseUrl + pageListLink, headers),
             ).execute().run {
                 if (!isSuccessful) {
                     close()
@@ -172,54 +191,36 @@ class Nudemoon : ParsedHttpSource() {
                 }
                 pageListDocument = this.asJsoup()
             }
-            pageListDocument.select("table.news_pic2")
+            pageListDocument.select(chapterListSelector())
                 .forEach {
-                    val chapter = SChapter.create()
-                    val nameAndUrl = it.select("tr[valign=top] a:has(h2)")
-                    val chapterName = nameAndUrl.select("h2").text()
-                    chapter.name = chapterName
-                    chapter.setUrlWithoutDomain(nameAndUrl.attr("abs:href"))
-                    val informBlock = it.select("tr[valign=top] td[align=left]")
-                    chapter.scanlator = informBlock.select("a[href*=perevod]").text()
-                    chapter.date_upload = informBlock.select("span.small2")
-                        .text().replace("Май", "Мая").let {
-                            textDate ->
-                            try {
-                                SimpleDateFormat("d MMMM yyyy", Locale("ru")).parse(textDate)?.time ?: 0L
-                            } catch (e: Exception) {
-                                0
-                            }
-                        }
-                    chapter.chapter_number = chapterName.substringAfter("№").substringBefore(" ").toFloatOrNull() ?: -1f
-                    add(chapter)
+                    add(chapterFromElement(it))
                 }
         }
     }
 
-    override fun chapterFromElement(element: Element): SChapter {
-        val chapter = SChapter.create()
-
-        val chapterName = element.select("table td.bg_style1 h1").text()
-        val chapterUrl = element.baseUri()
-
-        chapter.setUrlWithoutDomain(chapterUrl)
-        chapter.name = "$chapterName Сингл"
-        chapter.scanlator = element.select("table.news_pic2 a[href*=perevod]").text()
-        chapter.date_upload = element.select("table.news_pic2 span.small2:contains(/)").text().let {
-            try {
-                SimpleDateFormat("d/MM/yyyy", Locale("ru")).parse(it)?.time ?: 0L
-            } catch (e: Exception) {
-                0
+    override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
+        val nameAndUrl = element.select("tr[valign=top] a:has(h2)")
+        name = nameAndUrl.select("h2").text()
+        setUrlWithoutDomain(nameAndUrl.attr("abs:href"))
+        val informBlock = element.select("tr[valign=top] td[align=left]")
+        scanlator = informBlock.select("a[href*=perevod]").text()
+        date_upload = informBlock.select("span.small2")
+            .text().replace("Май", "Мая").let { textDate ->
+                try {
+                    dateParseRu.parse(textDate)?.time ?: 0L
+                } catch (e: Exception) {
+                    0
+                }
             }
-        }
-        chapter.chapter_number = 0F
-
-        return chapter
+        chapter_number = name.substringAfter("№").substringBefore(" ").toFloatOrNull() ?: -1f
     }
 
     override fun pageListParse(response: Response): List<Page> = mutableListOf<Page>().apply {
         response.asJsoup().select("div.gallery-item img.textbox").mapIndexed { index, img ->
             add(Page(index, imageUrl = img.attr("abs:data-src")))
+        }
+        if (size == 0 && cookieManager.getCookie(baseUrl).contains("fusion_user").not()) {
+            throw Exception("Страницы не найдены. Возможно необходима авторизация в WebView")
         }
     }
 
@@ -232,12 +233,12 @@ class Nudemoon : ParsedHttpSource() {
     private class OrderBy : Filter.Sort(
         "Сортировка",
         arrayOf("Дата", "Просмотры", "Лайки"),
-        Selection(1, false)
+        Selection(1, false),
     )
 
     override fun getFilterList() = FilterList(
         OrderBy(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private fun getGenreList() = listOf(
@@ -322,6 +323,6 @@ class Nudemoon : ParsedHttpSource() {
         Genre("netorare"),
         Genre("nipple penetration"),
         Genre("titsfuck"),
-        Genre("x-ray")
+        Genre("x-ray"),
     )
 }

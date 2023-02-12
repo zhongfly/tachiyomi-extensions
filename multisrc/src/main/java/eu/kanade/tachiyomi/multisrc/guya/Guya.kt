@@ -31,7 +31,7 @@ import uy.kohesive.injekt.api.get
 abstract class Guya(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : ConfigurableSource, HttpSource() {
 
     override val supportsLatest = true
@@ -42,7 +42,7 @@ abstract class Guya(
         "User-Agent",
         "(Android ${Build.VERSION.RELEASE}; " +
             "${Build.MANUFACTURER} ${Build.MODEL}) " +
-            "Tachiyomi/${AppInfo.getVersionName()} ${Build.ID}"
+            "Tachiyomi/${AppInfo.getVersionName()} ${Build.ID}",
     )
 
     private val scanlators: ScanlatorStore = ScanlatorStore()
@@ -59,7 +59,7 @@ abstract class Guya(
 
     // Gets the response object from the request
     override fun popularMangaParse(response: Response): MangasPage {
-        val res = response.body!!.string()
+        val res = response.body.string()
         return parseManga(JSONObject(res))
     }
 
@@ -68,7 +68,7 @@ abstract class Guya(
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val payload = JSONObject(response.body!!.string())
+        val payload = JSONObject(response.body.string())
         val mangas = sortedMapOf<Long, SManga>()
 
         for (series in payload.keys()) {
@@ -109,7 +109,7 @@ abstract class Guya(
     }
 
     private fun mangaDetailsParse(response: Response, manga: SManga): SManga {
-        val res = response.body!!.string()
+        val res = response.body.string()
         return parseMangaFromJson(JSONObject(res), "", manga.title)
     }
 
@@ -139,7 +139,7 @@ abstract class Guya(
 
     // Called after the request
     private fun chapterListParse(response: Response, manga: SManga): List<SChapter> {
-        return parseChapterList(response.body!!.string(), manga)
+        return parseChapterList(response.body.string(), manga)
     }
 
     // Overridden fetch so that we use our overloaded method instead
@@ -167,7 +167,7 @@ abstract class Guya(
     }
 
     private fun pageListParse(response: Response, chapter: SChapter): List<Page> {
-        val res = response.body!!.string()
+        val res = response.body.string()
 
         val json = JSONObject(res)
         val chapterNum = chapter.name.split(" - ")[0]
@@ -183,7 +183,7 @@ abstract class Guya(
             "folder",
             json.getJSONObject("chapters")
                 .getJSONObject(chapterNum)
-                .getString("folder")
+                .getString("folder"),
         )
 
         return parsePageFromJson(pages, metadata)
@@ -221,7 +221,7 @@ abstract class Guya(
     }
 
     protected open fun searchMangaParseWithSlug(response: Response, slug: String): MangasPage {
-        val results = JSONObject(response.body!!.string())
+        val results = JSONObject(response.body.string())
         val truncatedJSON = JSONObject()
 
         for (mangaTitle in results.keys()) {
@@ -236,7 +236,7 @@ abstract class Guya(
     }
 
     protected open fun searchMangaParse(response: Response, query: String): MangasPage {
-        val res = response.body!!.string()
+        val res = response.body.string()
         val json = JSONObject(res)
         val truncatedJSON = JSONObject()
 
@@ -310,7 +310,7 @@ abstract class Guya(
     }
 
     private fun proxyPageListParse(response: Response, chapter: SChapter): List<Page> {
-        val res = response.body!!.string()
+        val res = response.body.string()
         val pages = if (chapter.url.removePrefix(PROXY_PREFIX).startsWith(NESTED_PROXY_API_PREFIX)) {
             JSONArray(res)
         } else {
@@ -328,7 +328,7 @@ abstract class Guya(
                 it + 1,
                 "",
                 pages.optJSONObject(it)?.getString("src")
-                    ?: pages[it].toString()
+                    ?: pages[it].toString(),
             )
         }
     }
@@ -338,7 +338,7 @@ abstract class Guya(
     }
 
     protected open fun proxySearchMangaParse(response: Response, query: String): MangasPage {
-        val json = JSONObject(response.body!!.string())
+        val json = JSONObject(response.body.string())
         return MangasPage(listOf(parseMangaFromJson(json, query)), false)
     }
 
@@ -364,8 +364,8 @@ abstract class Guya(
                             chapterObj,
                             chapterNum,
                             chapterObj.getJSONArray(sortKey),
-                            response.getString("slug")
-                        )
+                            response.getString("slug"),
+                        ),
                     )
                 }
                 response.has(sortKey) -> {
@@ -374,8 +374,8 @@ abstract class Guya(
                             chapterObj,
                             chapterNum,
                             response.getJSONArray(sortKey),
-                            response.getString("slug")
-                        )
+                            response.getString("slug"),
+                        ),
                     )
                 }
                 else -> {
@@ -469,8 +469,8 @@ abstract class Guya(
                     metadata.getString("slug"),
                     metadata.getString("folder"),
                     pages[it].toString(),
-                    metadata.getString("scanlator")
-                )
+                    metadata.getString("scanlator"),
+                ),
             )
         }
     }
@@ -515,8 +515,11 @@ abstract class Guya(
         fun getValueFromKey(key: String): String {
             update()
             // Fallback to key as value if endpoint fails
-            return if (!scanlatorMap[key].isNullOrEmpty())
-                scanlatorMap[key].toString() else key
+            return if (!scanlatorMap[key].isNullOrEmpty()) {
+                scanlatorMap[key].toString()
+            } else {
+                key
+            }
         }
 
         fun keys(): MutableSet<String> {
@@ -528,7 +531,7 @@ abstract class Guya(
             if (!response.isSuccessful) {
                 retryCount++
             } else {
-                val json = JSONObject(response.body!!.string())
+                val json = JSONObject(response.body.string())
                 for (scanId in json.keys()) {
                     scanlatorMap[scanId] = json.getString(scanId)
                 }

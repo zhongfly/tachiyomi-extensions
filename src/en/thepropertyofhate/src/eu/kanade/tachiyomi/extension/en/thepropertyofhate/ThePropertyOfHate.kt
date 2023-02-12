@@ -57,7 +57,7 @@ class ThePropertyOfHate : HttpSource() {
                 url = firstChapterUrl
                 chapter_number = 1f
                 name = "The Hook"
-            }
+            },
         )
 
         document.select("select > option:not(:first-child)")
@@ -76,8 +76,8 @@ class ThePropertyOfHate : HttpSource() {
         response.asJsoup().select("select > optgroup > option")
             .mapIndexed { num, opt -> Page(num, opt.absUrl("value")) }
 
-    override fun imageUrlParse(response: Response) =
-        response.asJsoup().selectFirst(".comic_comic > img").absUrl("src")!!
+    override fun imageUrlParse(response: Response): String =
+        response.asJsoup().selectFirst(".comic_comic > img")!!.absUrl("src")
 
     override fun popularMangaRequest(page: Int): Request =
         throw UnsupportedOperationException("Not used")

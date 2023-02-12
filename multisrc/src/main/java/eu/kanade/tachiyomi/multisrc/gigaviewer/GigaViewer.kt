@@ -43,7 +43,7 @@ abstract class GigaViewer(
     override val name: String,
     override val baseUrl: String,
     override val lang: String,
-    private val cdnUrl: String = ""
+    private val cdnUrl: String = "",
 ) : ParsedHttpSource() {
 
     override val supportsLatest = true
@@ -67,8 +67,8 @@ abstract class GigaViewer(
     override fun popularMangaSelector(): String = "ul.series-list li a"
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        title = element.selectFirst("h2.series-list-title").text()
-        thumbnail_url = element.selectFirst("div.series-list-thumb img")
+        title = element.selectFirst("h2.series-list-title")!!.text()
+        thumbnail_url = element.selectFirst("div.series-list-thumb img")!!
             .attr("data-src")
         setUrlWithoutDomain(element.attr("href"))
     }
@@ -104,8 +104,9 @@ abstract class GigaViewer(
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        if (response.request.url.toString().contains("search"))
+        if (response.request.url.toString().contains("search")) {
             return super.searchMangaParse(response)
+        }
 
         return popularMangaParse(response)
     }
@@ -113,9 +114,9 @@ abstract class GigaViewer(
     override fun searchMangaSelector() = "ul.search-series-list li, ul.series-list li"
 
     override fun searchMangaFromElement(element: Element): SManga = SManga.create().apply {
-        title = element.selectFirst("div.title-box p.series-title").text()
-        thumbnail_url = element.selectFirst("div.thmb-container a img").attr("src")
-        setUrlWithoutDomain(element.selectFirst("div.thmb-container a").attr("href"))
+        title = element.selectFirst("div.title-box p.series-title")!!.text()
+        thumbnail_url = element.selectFirst("div.thmb-container a img")!!.attr("src")
+        setUrlWithoutDomain(element.selectFirst("div.thmb-container a")!!.attr("href"))
     }
 
     override fun searchMangaNextPageSelector(): String? = null
@@ -125,11 +126,11 @@ abstract class GigaViewer(
     override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
         val infoElement = document.selectFirst(mangaDetailsInfoSelector())!!
 
-        title = infoElement.selectFirst("h1.series-header-title").text()
-        author = infoElement.selectFirst("h2.series-header-author").text()
+        title = infoElement.selectFirst("h1.series-header-title")!!.text()
+        author = infoElement.selectFirst("h2.series-header-author")!!.text()
         artist = author
-        description = infoElement.selectFirst("p.series-header-description").text()
-        thumbnail_url = infoElement.selectFirst("div.series-header-image-wrapper img")
+        description = infoElement.selectFirst("p.series-header-description")!!.text()
+        thumbnail_url = infoElement.selectFirst("div.series-header-image-wrapper img")!!
             .attr("data-src")
     }
 
@@ -156,11 +157,11 @@ abstract class GigaViewer(
         var result = client.newCall(request).execute()
 
         while (result.code != 404) {
-            val jsonResult = json.parseToJsonElement(result.body!!.string()).jsonObject
+            val jsonResult = json.parseToJsonElement(result.body.string()).jsonObject
             readMoreEndpoint = jsonResult["nextUrl"]!!.jsonPrimitive.content
             val tempDocument = Jsoup.parse(
                 jsonResult["html"]!!.jsonPrimitive.content,
-                response.request.url.toString()
+                response.request.url.toString(),
             )
 
             tempDocument
@@ -182,10 +183,10 @@ abstract class GigaViewer(
 
     override fun chapterFromElement(element: Element): SChapter {
         val info = element.selectFirst("a.series-episode-list-container") ?: element
-        val mangaUrl = element.ownerDocument().location()
+        val mangaUrl = element.ownerDocument()!!.location()
 
         return SChapter.create().apply {
-            name = info.selectFirst("h4.series-episode-list-title").text()
+            name = info.selectFirst("h4.series-episode-list-title")!!.text()
             if (chapterListMode == CHAPTER_LIST_PAID && element.selectFirst("span.series-episode-list-is-free") == null) {
                 name = YEN_BANKNOTE + name
             } else if (chapterListMode == CHAPTER_LIST_LOCKED && element.hasClass("private")) {
@@ -200,7 +201,7 @@ abstract class GigaViewer(
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        val episode = document.selectFirst("script#episode-json")
+        val episode = document.selectFirst("script#episode-json")!!
             .attr("data-value")
             .let {
                 try {
@@ -237,7 +238,7 @@ abstract class GigaViewer(
 
     private class CollectionFilter(val collections: List<Collection>) : Filter.Select<Collection>(
         "コレクション",
-        collections.toTypedArray()
+        collections.toTypedArray(),
     ) {
         val selected: Collection
             get() = collections[state]
@@ -264,7 +265,7 @@ abstract class GigaViewer(
         request = request.newBuilder().url(newUrl).build()
 
         val response = chain.proceed(request)
-        val image = decodeImage(response.body!!.byteStream(), width, height)
+        val image = decodeImage(response.body.byteStream(), width, height)
         val body = image.toResponseBody(jpegMediaType)
 
         response.close()

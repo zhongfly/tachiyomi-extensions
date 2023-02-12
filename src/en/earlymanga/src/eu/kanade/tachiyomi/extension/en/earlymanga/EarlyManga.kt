@@ -36,15 +36,15 @@ class EarlyManga : ParsedHttpSource() {
 
     override val client: OkHttpClient = network.cloudflareClient
 
-    protected open val userAgentRandomizer1 = "${Random.nextInt(9).absoluteValue}"
-    protected open val userAgentRandomizer2 = "${Random.nextInt(10,99).absoluteValue}"
-    protected open val userAgentRandomizer3 = "${Random.nextInt(100,999).absoluteValue}"
+    private val userAgentRandomizer1 = "${Random.nextInt(9).absoluteValue}"
+    private val userAgentRandomizer2 = "${Random.nextInt(10,99).absoluteValue}"
+    private val userAgentRandomizer3 = "${Random.nextInt(100,999).absoluteValue}"
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
         .add(
             "User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/8$userAgentRandomizer1.0.4$userAgentRandomizer3.1$userAgentRandomizer2 Safari/537.36"
+                "Chrome/8$userAgentRandomizer1.0.4$userAgentRandomizer3.1$userAgentRandomizer2 Safari/537.36",
         )
         .add("Referer", baseUrl)
 
@@ -138,7 +138,7 @@ class EarlyManga : ParsedHttpSource() {
                 var next = allChapters
                 repeat(10) {
                     if (next.selectFirst(str2) != null) {
-                        val current = next.select(str5 ?: str3)?.text() ?: str4
+                        val current = next.select(str5 ?: str3).text() ?: str4
                         next.addClass(current)
                     } else {
                         next = next.parent()
@@ -172,7 +172,7 @@ class EarlyManga : ParsedHttpSource() {
         val crypt4 = IvParameterSpec(Base64.decode("totally not some plaintxt".toByteArray(Charsets.UTF_8), Base64.DEFAULT))
         crypt2.init(Cipher.DECRYPT_MODE, crypt3, crypt4)
         val str1 = String(crypt2.doFinal(Base64.decode("ckFyOt1FSclkqG4dG2+mbw==".toByteArray(Charsets.UTF_8), Base64.DEFAULT)))
-        val str2 = element.selectFirst(str1)
+        val str2 = element.selectFirst(str1)!!
 
         setUrlWithoutDomain(str2.attr("href"))
         name = str2.text()
@@ -190,7 +190,7 @@ class EarlyManga : ParsedHttpSource() {
     // pages
     override fun pageListParse(document: Document): List<Page> {
         return document.select(
-            "img[src*=manga],img[src*=chapter],div>div>img[src]"
+            "img[src*=manga],img[src*=chapter],div>div>img[src]",
         ).mapIndexed { i, element ->
             Page(i, "", element.attr("abs:src"))
         }

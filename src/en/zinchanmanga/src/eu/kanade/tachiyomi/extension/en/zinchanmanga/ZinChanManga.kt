@@ -89,7 +89,7 @@ class ZinChanManga : HttpSource() {
 
     override fun getFilterList() = FilterList(
         ZinChanGenre.Companion.Note,
-        ZinChanGenre(ZinChanGenre.genres)
+        ZinChanGenre(ZinChanGenre.genres),
     )
 
     private inline val SManga.id: String
@@ -118,7 +118,7 @@ class ZinChanManga : HttpSource() {
         }!!
 
     private inline fun <reified T> Response.parse() =
-        json.decodeFromString<T>(body!!.string())
+        json.decodeFromString<T>(body.string())
 
     override fun latestUpdatesParse(response: Response) =
         throw UnsupportedOperationException("Not used")

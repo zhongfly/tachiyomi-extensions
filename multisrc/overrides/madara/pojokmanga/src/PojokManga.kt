@@ -9,12 +9,7 @@ import okhttp3.Request
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class PojokManga : Madara(
-    "Pojok Manga",
-    "https://pojokmanga.com",
-    "id",
-    SimpleDateFormat("MMM dd, yyyy", Locale.US)
-) {
+class PojokManga : Madara("Pojok Manga", "https://pojokmanga.net", "id", SimpleDateFormat("MMM dd, yyyy", Locale.US)) {
 
     override val useLoadMoreSearch = false
 
@@ -71,6 +66,7 @@ class PojokManga : Madara(
                         url = "$baseUrl/project/page/$page".toHttpUrlOrNull()!!.newBuilder()
                     }
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -82,8 +78,8 @@ class PojokManga : Madara(
         "Filter Project",
         arrayOf(
             Pair("Show all manga", ""),
-            Pair("Show only project manga", "project-filter-on")
-        )
+            Pair("Show only project manga", "project-filter-on"),
+        ),
     )
 
     override fun getFilterList(): FilterList {
@@ -93,7 +89,7 @@ class PojokManga : Madara(
             Filter.Separator(),
             Filter.Header("NOTE: cant be used with other filter!"),
             Filter.Header("$name Project List page"),
-            ProjectFilter()
+            ProjectFilter(),
         )
 
         return FilterList(filters)

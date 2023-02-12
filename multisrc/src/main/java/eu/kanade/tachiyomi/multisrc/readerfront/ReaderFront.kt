@@ -20,7 +20,7 @@ import uy.kohesive.injekt.injectLazy
 abstract class ReaderFront(
     final override val name: String,
     final override val baseUrl: String,
-    final override val lang: String
+    final override val lang: String,
 ) : HttpSource() {
     override val supportsLatest = true
 
@@ -129,7 +129,7 @@ abstract class ReaderFront(
         copy(mangas.filter(predicate))
 
     private inline fun <reified T> Response.parse(name: String) =
-        json.parseToJsonElement(body!!.string()).jsonObject.run {
+        json.parseToJsonElement(body.string()).jsonObject.run {
             if (containsKey("errors")) {
                 throw Error(get("errors")!![0]["message"].content)
             }

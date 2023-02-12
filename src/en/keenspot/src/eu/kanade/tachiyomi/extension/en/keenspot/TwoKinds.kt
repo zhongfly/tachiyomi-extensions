@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.util.asJsoup
 import okhttp3.Request
 import okhttp3.Response
 import rx.Observable
+import kotlin.math.min
 
 class TwoKinds : HttpSource() {
 
@@ -64,10 +65,11 @@ class TwoKinds : HttpSource() {
 
     // the manga is one and only, but still write the data again to avoid bugs in backup restore
     override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
-        if (manga.url == "1")
+        if (manga.url == "1") {
             return Observable.just(mangaSinglePages())
-        else
+        } else {
             return Observable.just(manga20Pages())
+        }
     }
 
     override fun mangaDetailsParse(response: Response): SManga = throw Exception("Not used")
@@ -83,41 +85,46 @@ class TwoKinds : HttpSource() {
     }
 
     override fun chapterListRequest(manga: SManga): Request {
-        return GET(baseUrl, headers)
+        return GET("$baseUrl/archive/", headers)
     }
 
     override fun chapterListParse(response: Response): List<SChapter> = throw Exception("Not used")
 
-    fun chapterListParse(response: Response, manga: SManga): List<SChapter> {
+    data class TwoKindsPage(val url: String, val name: String)
+
+    private fun chapterListParse(response: Response, manga: SManga): List<SChapter> {
         val document = response.asJsoup()
 
-        val lastPage = document.select(".navprev").first().attr("href").split("/")[2].toInt() + 1
+        val pages = document.select(".chapter-links")
+            .flatMap { season -> season.select("> a") }
+            .map { a ->
+                // /comic/1185halloween/ -> 1185halloween
+                val urlPart = a.attr("href").split("/")[2]
+                val name = a.selectFirst("span")!!.text()
 
-        val chapters = mutableListOf<SChapter>()
+                TwoKindsPage(urlPart, name)
+            }
 
+        // 1 page per chapter
         if (manga.url == "1") {
-            for (i in 1..lastPage) {
-                chapters.add(
-                    SChapter.create().apply() {
-                        url = "1-$i"
-                        name = "Page $i"
-                    }
-                )
-            }
-        } else {
-            for (i in 1..lastPage step 20) {
-                chapters.add(
-                    SChapter.create().apply() {
-                        url = "20-$i"
-                        if (i + 20 > lastPage)
-                            name = "Pages $i-$lastPage"
-                        else
-                            name = "Pages $i-${i + 20}"
-                    }
-                )
-            }
+            return pages.map { page ->
+                SChapter.create().apply {
+                    url = "1-${page.url}"
+                    name = "Page ${page.name}"
+                }
+            }.reversed()
         }
 
+        // 20 pages per chapter
+        val chapters = mutableListOf<SChapter>()
+        for (i in pages.indices step 20) {
+            chapters.add(
+                SChapter.create().apply {
+                    url = "20-${pages[i].url}"
+                    name = "Pages ${pages[i].name}-${pages[min(pages.size, i + 20) - 1].name}"
+                },
+            )
+        }
         return chapters.reversed()
     }
 
@@ -125,19 +132,33 @@ class TwoKinds : HttpSource() {
         if (chapter.url.startsWith("1")) {
             return Observable.just(
                 listOf(
-                    Page(0, baseUrl + "/comic/${chapter.url.substringAfter("-")}/")
-                )
+                    Page(0, baseUrl + "/comic/${chapter.url.substringAfter("-")}/"),
+                ),
             )
         } else {
-            val pages = mutableListOf<Page>()
-            val firstPage = chapter.url.substringAfter("-").toInt()
+            val firstPage = chapter.url.substringAfter("-")
+            val document = client.newCall(chapterListRequest(SManga.create())).execute().asJsoup()
 
-            for (i in firstPage..firstPage + 19) {
-                pages.add(
-                    Page(i - firstPage, baseUrl + "/comic/$i/")
-                )
-            }
-            return Observable.just(pages)
+            val pages = document.select(".chapter-links")
+                .flatMap { season -> season.select("> a") }
+                .map { a ->
+                    // /comic/1185halloween/ -> 1185halloween
+                    val urlPart = a.attr("href").split("/")[2]
+                    val name = a.selectFirst("span")!!.text()
+
+                    TwoKindsPage(urlPart, name)
+                }
+
+            val firstPageIdx = pages.indexOfFirst { it.url == firstPage }
+            val lastPageIdx = min(pages.size, firstPageIdx + 20)
+
+            return Observable.just(
+                pages
+                    .subList(firstPageIdx, lastPageIdx)
+                    .mapIndexed { idx, page ->
+                        Page(idx, baseUrl + "/comic/${page.url}/")
+                    },
+            )
         }
     }
 
@@ -146,7 +167,7 @@ class TwoKinds : HttpSource() {
     override fun imageUrlParse(response: Response): String {
         val document = response.asJsoup()
 
-        return document.select("#content article img").first().attr("src")
+        return document.select("#content article img").first()!!.attr("src")
     }
 
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> = throw Exception("Search functionality is not available.")

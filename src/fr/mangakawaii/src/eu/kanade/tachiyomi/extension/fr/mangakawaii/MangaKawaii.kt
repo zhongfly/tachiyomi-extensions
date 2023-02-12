@@ -29,7 +29,7 @@ class MangaKawaii : ParsedHttpSource() {
 
     override val name = "Mangakawaii"
     override val baseUrl = "https://www.mangakawaii.io"
-    val cdnUrl = "https://cdn.mangakawaii.pics"
+    private val cdnUrl = "https://cdn.mangakawaii.pics"
     override val lang = "fr"
     override val supportsLatest = true
 
@@ -39,19 +39,19 @@ class MangaKawaii : ParsedHttpSource() {
         .rateLimit(2)
         .build()
 
-    protected open val userAgentRandomizer1 = "${Random.nextInt(9).absoluteValue}"
-    protected open val userAgentRandomizer2 = "${Random.nextInt(10, 99).absoluteValue}"
-    protected open val userAgentRandomizer3 = "${Random.nextInt(100, 999).absoluteValue}"
+    private val userAgentRandomizer1 = "${Random.nextInt(9).absoluteValue}"
+    private val userAgentRandomizer2 = "${Random.nextInt(10, 99).absoluteValue}"
+    private val userAgentRandomizer3 = "${Random.nextInt(100, 999).absoluteValue}"
 
     override fun headersBuilder(): Headers.Builder = Headers.Builder()
         .add(
             "User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/8$userAgentRandomizer1.0.4$userAgentRandomizer3.1$userAgentRandomizer2 Safari/537.36"
+                "Chrome/8$userAgentRandomizer1.0.4$userAgentRandomizer3.1$userAgentRandomizer2 Safari/537.36",
         )
         .add(
             "Accept-Language",
-            lang
+            lang,
         )
 
     // Popular
@@ -172,8 +172,8 @@ class MangaKawaii : ParsedHttpSource() {
                 Page(
                     i,
                     cdnUrl + "/uploads/manga/" + mangaSlug + "/chapters_fr/" + chapterSlug + "/" + it.groupValues[1],
-                    cdnUrl + "/uploads/manga/" + mangaSlug + "/chapters_fr/" + chapterSlug + "/" + it.groupValues[1]
-                )
+                    cdnUrl + "/uploads/manga/" + mangaSlug + "/chapters_fr/" + chapterSlug + "/" + it.groupValues[1],
+                ),
             )
         }
         return pages

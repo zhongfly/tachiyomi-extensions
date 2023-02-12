@@ -7,12 +7,12 @@ import java.util.concurrent.TimeUnit
 
 class FirstKissManga : Madara(
     "1st Kiss",
-    "https://1stkissmanga.io",
-    "en"
+    "https://1stkissmanga.me",
+    "en",
 ) {
     override fun headersBuilder(): Headers.Builder = super.headersBuilder().add("Referer", baseUrl)
 
     override val client = network.cloudflareClient.newBuilder()
-        .rateLimit(1, 2, TimeUnit.SECONDS)
+        .rateLimit(1, 3, TimeUnit.SECONDS)
         .build()
 }

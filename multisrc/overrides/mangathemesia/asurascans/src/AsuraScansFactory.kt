@@ -10,11 +10,11 @@ import java.util.Locale
 class AsuraScansFactory : SourceFactory {
     override fun createSources() = listOf(
         AsuraScansEn(),
-        AsuraScansTr()
+        AsuraScansTr(),
     )
 }
 
-class AsuraScansEn : AsuraScans("https://www.asurascans.com", "en", SimpleDateFormat("MMM d, yyyy", Locale.US)) {
+class AsuraScansEn : AsuraScans("https://asura.gg", "en", SimpleDateFormat("MMM d, yyyy", Locale.US)) {
 
     override val seriesDescriptionSelector = "div.desc p, div.entry-content p, div[itemprop=description]:not(:has(p))"
 
@@ -24,11 +24,11 @@ class AsuraScansEn : AsuraScans("https://www.asurascans.com", "en", SimpleDateFo
     override fun pageListParse(document: Document): List<Page> {
         return document.select(pageSelector)
             .filterNot { it.attr("src").isNullOrEmpty() }
-            .mapIndexed { i, img -> Page(i, "", img.attr("src")) }
+            .mapIndexed { i, img -> Page(i, "", img.attr("abs:src")) }
     }
 }
 
-class AsuraScansTr : AsuraScans("https://tr.asurascans.com", "tr", SimpleDateFormat("MMM d, yyyy", Locale("tr"))) {
+class AsuraScansTr : AsuraScans("https://asurascanstr.com", "tr", SimpleDateFormat("MMM d, yyyy", Locale("tr"))) {
 
     override val seriesArtistSelector = ".fmed b:contains(Çizer)+span"
     override val seriesAuthorSelector = ".fmed b:contains(Yazar)+span"

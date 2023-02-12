@@ -27,7 +27,7 @@ abstract class MangaBox(
     override val name: String,
     override val baseUrl: String,
     override val lang: String,
-    private val dateformat: SimpleDateFormat = SimpleDateFormat("MMM-dd-yy", Locale.ENGLISH)
+    private val dateformat: SimpleDateFormat = SimpleDateFormat("MMM-dd-yy", Locale.ENGLISH),
 ) : ParsedHttpSource() {
 
     override val supportsLatest = true
@@ -60,11 +60,11 @@ abstract class MangaBox(
 
     protected fun mangaFromElement(element: Element, urlSelector: String = "h3 a"): SManga {
         return SManga.create().apply {
-            element.select(urlSelector).first().let {
+            element.select(urlSelector).first()!!.let {
                 url = it.attr("abs:href").substringAfter(baseUrl) // intentionally not using setUrlWithoutDomain
                 title = it.text()
             }
-            thumbnail_url = element.select("img").first().attr("abs:src")
+            thumbnail_url = element.select("img").first()!!.attr("abs:src")
         }
     }
 
@@ -96,6 +96,7 @@ abstract class MangaBox(
                             filter.state.forEach { if (it.isIncluded()) genreInclude += "_${it.id}" }
                             filter.state.forEach { if (it.isExcluded()) genreExclude += "_${it.id}" }
                         }
+                        else -> {}
                     }
                 }
                 url.addQueryParameter("g_i", genreInclude)
@@ -108,6 +109,7 @@ abstract class MangaBox(
                         is SortFilter -> url.addQueryParameter("type", filter.toUriPart())
                         is StatusFilter -> url.addQueryParameter("state", filter.toUriPart())
                         is GenreFilter -> url.addQueryParameter("category", filter.toUriPart())
+                        else -> {}
                     }
                 }
             }
@@ -135,21 +137,22 @@ abstract class MangaBox(
     }
 
     private fun checkForRedirectMessage(document: Document) {
-        if (document.select("body").text().startsWith("REDIRECT :"))
+        if (document.select("body").text().startsWith("REDIRECT :")) {
             throw Exception("Source URL has changed")
+        }
     }
 
     override fun mangaDetailsParse(document: Document): SManga {
         return SManga.create().apply {
             document.select(mangaDetailsMainSelector).firstOrNull()?.let { infoElement ->
-                title = infoElement.select("h1, h2").first().text()
+                title = infoElement.select("h1, h2").first()!!.text()
                 author = infoElement.select("li:contains(author) a, td:containsOwn(author) + td a").eachText().joinToString()
                 status = parseStatus(infoElement.select("li:contains(status), td:containsOwn(status) + td").text())
                 genre = infoElement.select("div.manga-info-top li:contains(genres)").firstOrNull()
                     ?.select("a")?.joinToString { it.text() } // kakalot
                     ?: infoElement.select("td:containsOwn(genres) + td a").joinToString { it.text() } // nelo
             } ?: checkForRedirectMessage(document)
-            description = document.select(descriptionSelector)?.firstOrNull()?.ownText()
+            description = document.select(descriptionSelector).firstOrNull()?.ownText()
                 ?.replace("""^$title summary:\s""".toRegex(), "")
                 ?.replace("""<\s*br\s*/?>""".toRegex(), "\n")
                 ?.replace("<[^>]*>".toRegex(), "")
@@ -198,7 +201,7 @@ abstract class MangaBox(
 
     private fun Element.selectDateFromElement(): Element {
         val defaultChapterDateSelector = "span"
-        return this.select(defaultChapterDateSelector).lastOrNull() ?: this.select(alternateChapterDateSelector).last()
+        return this.select(defaultChapterDateSelector).lastOrNull() ?: this.select(alternateChapterDateSelector).last()!!
     }
 
     override fun chapterFromElement(element: Element): SChapter {
@@ -290,7 +293,7 @@ abstract class MangaBox(
             KeywordFilter(getKeywordFilters()),
             SortFilter(getSortFilters()),
             StatusFilter(getStatusFilters()),
-            AdvGenreFilter(getAdvancedGenreFilters())
+            AdvGenreFilter(getAdvancedGenreFilters()),
         )
     } else {
         FilterList(
@@ -298,7 +301,7 @@ abstract class MangaBox(
             Filter.Separator(),
             SortFilter(getSortFilters()),
             StatusFilter(getStatusFilters()),
-            GenreFilter(getGenreFilters())
+            GenreFilter(getGenreFilters()),
         )
     }
 
@@ -316,20 +319,20 @@ abstract class MangaBox(
         Pair(null, "Everything"),
         Pair("title", "Title"),
         Pair("alternative", "Alt title"),
-        Pair("author", "Author")
+        Pair("author", "Author"),
     )
 
     private fun getSortFilters(): Array<Pair<String?, String>> = arrayOf(
         Pair("latest", "Latest"),
         Pair("newest", "Newest"),
-        Pair("topview", "Top read")
+        Pair("topview", "Top read"),
     )
 
     open fun getStatusFilters(): Array<Pair<String?, String>> = arrayOf(
         Pair("all", "ALL"),
         Pair("completed", "Completed"),
         Pair("ongoing", "Ongoing"),
-        Pair("drop", "Dropped")
+        Pair("drop", "Dropped"),
     )
 
     open fun getGenreFilters(): Array<Pair<String?, String>> = arrayOf(
@@ -373,7 +376,7 @@ abstract class MangaBox(
         Pair("39", "Tragedy"),
         Pair("40", "Webtoons"),
         Pair("41", "Yaoi"),
-        Pair("42", "Yuri")
+        Pair("42", "Yuri"),
     )
 
     // To be overridden if using tri-state genres

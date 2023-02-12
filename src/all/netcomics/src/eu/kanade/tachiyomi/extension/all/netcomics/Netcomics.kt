@@ -26,7 +26,7 @@ import java.util.Calendar
 
 class Netcomics(
     override val lang: String,
-    private val site: String
+    private val site: String,
 ) : ConfigurableSource, HttpSource() {
     override val name = "NETCOMICS"
 
@@ -242,17 +242,17 @@ class Netcomics(
 
     private inline fun <reified T> Response.data() =
         json.decodeFromJsonElement<T>(
-            json.parseToJsonElement(body!!.string()).run {
+            json.parseToJsonElement(body.string()).run {
                 jsonObject["data"] ?: throw Error(
-                    jsonObject["message"]!!.jsonPrimitive.content
+                    jsonObject["message"]!!.jsonPrimitive.content,
                 )
-            }
+            },
         )
 
     private inline fun <R> Uri.fetch(
         path: String,
         noinline parse: (Response) -> R,
-        block: Uri.Builder.() -> Uri.Builder
+        block: Uri.Builder.() -> Uri.Builder,
     ) = buildUpon().appendEncodedPath(path).let(block).toString().run {
         client.newCall(GET(this, apiHeaders)).asObservable().map(parse)!!
     }

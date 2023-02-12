@@ -15,10 +15,6 @@ import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-/**
- *  @author THE_ORONCO <the_oronco@posteo.net>
- */
-
 class Aurora : HttpSource() {
 
     override val name = "Aurora"
@@ -39,7 +35,7 @@ class Aurora : HttpSource() {
 
     private tailrec fun fetchChapterListTR(
         currentUrl: String,
-        foundChapters: MutableList<SChapter>
+        foundChapters: MutableList<SChapter>,
     ): MutableList<SChapter> {
         val currentPage = client.newCall(GET(currentUrl, headers)).execute().asJsoup()
 
@@ -103,7 +99,7 @@ class Aurora : HttpSource() {
      */
     private fun getChapterStatusForChapter(chapter: Float): Int {
         val newestPage = client.newCall(GET(baseUrl)).execute().asJsoup()
-        val postTitle = newestPage.selectFirst(".post-title").text()
+        val postTitle = newestPage.selectFirst(".post-title")!!.text()
         // title is "<arc>.<chapter>.<page>"
         val chapterOfNewestPage = postTitle.split(".")[1].toFloat()
         return if (chapter >= chapterOfNewestPage) SManga.UNKNOWN else SManga.COMPLETED
@@ -121,11 +117,11 @@ class Aurora : HttpSource() {
 
     override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
         val singlePageChapterDoc = client.newCall(
-            GET(baseUrl + chapter.url, headers)
+            GET(baseUrl + chapter.url, headers),
         ).execute().asJsoup()
         val imageUrl = singlePageChapterDoc.selectFirst(
-            ".webcomic-media .webcomic-link .attachment-full"
-        ).attr("src")
+            ".webcomic-media .webcomic-link .attachment-full",
+        )!!.attr("src")
         val singlePageChapter = Page(0, "", imageUrl)
 
         return Observable.just(listOf(singlePageChapter))
@@ -151,10 +147,10 @@ class Aurora : HttpSource() {
         val chapterBlockElements = chapterOverviewDoc.select(".wp-block-image")
         val mangasFromChapters = chapterBlockElements
             .mapIndexed { chapterIndex, chapter ->
-                val chapterOverviewLink = chapter.selectFirst("a")
+                val chapterOverviewLink = chapter.selectFirst("a")!!
                 val chapterOverviewUrl = chapterOverviewLink.attr("href")
                 val chapterTitle = "$name - ${chapterOverviewLink.text()}"
-                val chapterThumbnail = chapter.selectFirst("img").attr("src")
+                val chapterThumbnail = chapter.selectFirst("img")!!.attr("src")
 
                 SManga.create().apply {
                     setUrlWithoutDomain(chapterOverviewUrl)
@@ -165,8 +161,11 @@ class Aurora : HttpSource() {
                     genre = auroraGenre
                     // this will mark every chapter except the last one as completed
                     status =
-                        if (chapterIndex >= chapterBlockElements.size - 1) SManga.UNKNOWN
-                        else SManga.COMPLETED
+                        if (chapterIndex >= chapterBlockElements.size - 1) {
+                            SManga.UNKNOWN
+                        } else {
+                            SManga.COMPLETED
+                        }
                     thumbnail_url = chapterThumbnail
                 }
             }

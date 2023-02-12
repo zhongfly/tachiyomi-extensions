@@ -42,7 +42,7 @@ class AComics : ParsedHttpSource() {
                 .build()
 
             chain.proceed(newReq)
-        }.build()!!
+        }.build()
 
     override val supportsLatest = true
 
@@ -83,6 +83,7 @@ class AComics : ParsedHttpSource() {
                             }
                         }
                     }
+                    else -> {}
                 }
             }
             "$baseUrl/comics?categories=${categories.joinToString(",")}&${rating.joinToString { "ratings[]=$it" }}&type=0&updatable=$status&subscribe=0&issue_count=2&sort=subscr_count&skip=${10 * (page - 1)}"
@@ -98,8 +99,8 @@ class AComics : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = baseUrl + element.select("a > img").first().attr("src")
-        element.select("div.title > a").first().let {
+        manga.thumbnail_url = baseUrl + element.select("a > img").first()!!.attr("src")
+        element.select("div.title > a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href") + "/about")
             manga.title = it.text()
         }
@@ -119,7 +120,7 @@ class AComics : ParsedHttpSource() {
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select(".about-summary").first()
+        val infoElement = document.select(".about-summary").first()!!
         val manga = SManga.create()
         manga.author = infoElement.select(".about-summary > p:contains(Автор)").text().split(":")[1]
         manga.genre = infoElement.select("a.button").joinToString { it.text() }
@@ -150,7 +151,7 @@ class AComics : ParsedHttpSource() {
     override fun chapterFromElement(element: Element): SChapter = throw Exception("Not used")
 
     override fun pageListParse(document: Document): List<Page> {
-        val imageElement = document.select("img#mainImage").first()
+        val imageElement = document.select("img#mainImage").first()!!
         return listOf(Page(0, imageUrl = baseUrl + imageElement.attr("src")))
     }
 
@@ -169,14 +170,14 @@ class AComics : ParsedHttpSource() {
             Rating("6+", 3),
             Rating("12+", 4),
             Rating("16+", 5),
-            Rating("18+", 6)
-        )
+            Rating("18+", 6),
+        ),
     )
 
     override fun getFilterList() = FilterList(
         Status(),
         RatingList(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private fun getGenreList() = listOf(
@@ -192,6 +193,6 @@ class AComics : ParsedHttpSource() {
         Genre("Фантастика", 10),
         Genre("Бытовое", 11),
         Genre("Стимпанк", 12),
-        Genre("Супергерои", 13)
+        Genre("Супергерои", 13),
     )
 }

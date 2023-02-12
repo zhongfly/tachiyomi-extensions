@@ -28,7 +28,7 @@ class Roumanwu : HttpSource(), ConfigurableSource {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
 
     override val baseUrl = MIRRORS[
-        max(MIRRORS.size - 1, preferences.getString(MIRROR_PREF, MIRROR_DEFAULT)!!.toInt())
+        max(MIRRORS.size - 1, preferences.getString(MIRROR_PREF, MIRROR_DEFAULT)!!.toInt()),
     ]
 
     override val client = network.client.newBuilder().addInterceptor(ScrambledImageInterceptor).build()
@@ -106,9 +106,6 @@ class Roumanwu : HttpSource(), ConfigurableSource {
             summary = MIRROR_PREF_SUMMARY
 
             setDefaultValue(MIRROR_DEFAULT)
-            setOnPreferenceChangeListener { _, newValue ->
-                preferences.edit().putString(MIRROR_PREF, newValue as String).commit()
-            }
         }
         screen.addPreference(mirrorPref)
     }
@@ -119,14 +116,14 @@ class Roumanwu : HttpSource(), ConfigurableSource {
         private const val MIRROR_PREF_SUMMARY = "使用镜像网址。重启软件生效。"
 
         // 地址: https://rou.pub/dizhi
-        private val MIRRORS = arrayOf("https://rouman5.com", "https://rouman01.xyz")
+        private val MIRRORS = arrayOf("https://rouman5.com", "https://rm01.xyz")
         private val MIRRORS_DESC = arrayOf("主站", "镜像")
         private const val MIRROR_DEFAULT = 1.toString() // use mirror
 
         private val TAGS = arrayOf("全部", "正妹", "恋爱", "出版漫画", "肉慾", "浪漫", "大尺度", "巨乳", "有夫之婦", "女大生", "狗血劇", "同居", "好友", "調教", "动作", "後宮", "不倫")
     }
 
-    private inline fun <reified T> Response.parseAs(): T = json.decodeFromStream(this.body!!.byteStream())
+    private inline fun <reified T> Response.parseAs(): T = json.decodeFromStream(this.body.byteStream())
 
     private inline fun <reified T> Response.nextjsData() =
         json.decodeFromString<NextData<T>>(this.asJsoup().select("#__NEXT_DATA__").html()).props.pageProps

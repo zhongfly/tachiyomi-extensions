@@ -45,7 +45,7 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru") {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (csrfToken.isEmpty()) {
             val tokenResponse = client.newCall(popularMangaRequest(page)).execute()
-            val resBody = tokenResponse.body!!.string()
+            val resBody = tokenResponse.body.string()
             csrfToken = "_token\" content=\"(.*)\"".toRegex().find(resBody)!!.groups[1]!!.value
         }
         val url = super.searchMangaRequest(page, query, filters).url.newBuilder()
@@ -55,7 +55,7 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru") {
                     if (age.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(
                             if (age.isIncluded()) "caution[include][]" else "caution[exclude][]",
-                            age.id
+                            age.id,
                         )
                     }
                 }
@@ -63,10 +63,11 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru") {
                     if (tag.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(
                             if (tag.isIncluded()) "tags[include][]" else "tags[exclude][]",
-                            tag.id
+                            tag.id,
                         )
                     }
                 }
+                else -> {}
             }
         }
         return POST(url.toString(), catalogHeaders())
@@ -182,14 +183,14 @@ class MangaLib : LibGroup("MangaLib", "https://mangalib.me", "ru") {
         SearchFilter("Шантаж", "279"),
         SearchFilter("Эльфы", "216"),
         SearchFilter("Якудза", "164"),
-        SearchFilter("Япония", "280")
+        SearchFilter("Япония", "280"),
 
     )
 
     private fun getAgeList() = listOf(
         SearchFilter("Отсутствует", "0"),
         SearchFilter("16+", "1"),
-        SearchFilter("18+", "2")
+        SearchFilter("18+", "2"),
     )
 
     companion object {

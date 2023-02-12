@@ -23,19 +23,19 @@ class MeituaTop : HttpSource() {
     override val lang = "all"
     override val supportsLatest = false
 
-    override val baseUrl = "https://meitua.top"
+    override val baseUrl = "https://meitu1.one"
 
-    override fun popularMangaRequest(page: Int) = GET("$baseUrl/arttype/0a-$page.html", headers)
+    override fun popularMangaRequest(page: Int) = GET("$baseUrl/arttype/0b-$page.html", headers)
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
-        val mangas = document.selectFirst(Evaluator.Class("thumbnail-group")).children().map {
+        val mangas = document.selectFirst(Evaluator.Class("thumbnail-group"))!!.children().map {
             SManga.create().apply {
-                url = it.selectFirst(Evaluator.Tag("a")).attr("href")
-                val image = it.selectFirst(Evaluator.Tag("img"))
+                url = it.selectFirst(Evaluator.Tag("a"))!!.attr("href")
+                val image = it.selectFirst(Evaluator.Tag("img"))!!
                 title = image.attr("alt")
                 thumbnail_url = image.attr("src")
-                val info = it.selectFirst(Evaluator.Tag("p")).ownText().split(" - ")
+                val info = it.selectFirst(Evaluator.Tag("p"))!!.ownText().split(" - ")
                 genre = info[0]
                 description = info[1]
                 status = SManga.COMPLETED
@@ -63,7 +63,7 @@ class MeituaTop : HttpSource() {
         }
 
         val filter = filters.filterIsInstance<RegionFilter>().firstOrNull() ?: return popularMangaRequest(page)
-        return GET("$baseUrl/arttype/${21 + filter.state}a-$page.html", headers)
+        return GET("$baseUrl/arttype/${21 + filter.state}b-$page.html", headers)
     }
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
@@ -86,8 +86,8 @@ class MeituaTop : HttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
-        val images = document.selectFirst(Evaluator.Class("ttnr")).select(Evaluator.Tag("img"))
-            .map { it.attr("src")!! }.distinct()
+        val images = document.selectFirst(Evaluator.Class("ttnr"))!!.select(Evaluator.Tag("img"))
+            .map { it.attr("src") }.distinct()
         return images.mapIndexed { index, imageUrl -> Page(index, imageUrl = imageUrl) }
     }
 
@@ -95,11 +95,12 @@ class MeituaTop : HttpSource() {
 
     override fun getFilterList() = FilterList(
         Filter.Header("Category (ignored for text search)"),
-        RegionFilter()
+        RegionFilter(),
     )
 
     private class RegionFilter : Filter.Select<String>(
-        "Region", arrayOf("All", "国产美女", "韩国美女", "台湾美女", "日本美女", "欧美美女", "泰国美女")
+        "Region",
+        arrayOf("All", "国产美女", "韩国美女", "台湾美女", "日本美女", "欧美美女", "泰国美女"),
     )
 
     private fun String.pageNumber() = numberRegex.findAll(this).last().value.toInt()

@@ -56,7 +56,7 @@ class RealLifeComics : ParsedHttpSource() {
     override fun fetchMangaDetails(manga: SManga) = Observable.just(
         manga.apply {
             initialized = true
-        }
+        },
     )!!
 
     // Chapters
@@ -77,10 +77,10 @@ class RealLifeComics : ParsedHttpSource() {
         // figure out a date using the calendar
         // perhaps there might be a better way to get this but for now this works
         val monthYear = element
-            .parent()
-            .parent()
-            .parent()
-            .parent()
+            .parent()!!
+            .parent()!!
+            .parent()!!
+            .parent()!!
             .firstElementSibling()
             .text()
 

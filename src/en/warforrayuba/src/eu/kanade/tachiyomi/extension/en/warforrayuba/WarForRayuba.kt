@@ -49,7 +49,7 @@ class WarForRayuba : HttpSource() {
             "(Android ${Build.VERSION.RELEASE}; " +
                 "${Build.MANUFACTURER} ${Build.MODEL}) " +
                 "Tachiyomi/${AppInfo.getVersionName()} " +
-                Build.ID
+                Build.ID,
         )
     }.build()
 
@@ -67,7 +67,7 @@ class WarForRayuba : HttpSource() {
             SManga.create().apply {
                 val githubRawUrl = "https://raw.githubusercontent.com/xrabohrok/WarMap/" + element.attr("abs:href").replace(".*(?=main)".toRegex(), "")
                 val githubData: RoundDto = json.decodeFromString(
-                    client.newCall(GET(githubRawUrl, headers)).execute().body!!.string()
+                    client.newCall(GET(githubRawUrl, headers)).execute().body.string(),
                 )
 
                 title = githubData.title
@@ -96,7 +96,7 @@ class WarForRayuba : HttpSource() {
     }
 
     override fun mangaDetailsParse(response: Response) = SManga.create().apply {
-        val githubData: RoundDto = json.decodeFromString(response.body!!.string())
+        val githubData: RoundDto = json.decodeFromString(response.body.string())
 
         thumbnail_url = githubData.cover
         status = SManga.UNKNOWN
@@ -111,7 +111,7 @@ class WarForRayuba : HttpSource() {
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val responseJson: RoundDto = json.decodeFromString(response.body!!.string())
+        val responseJson: RoundDto = json.decodeFromString(response.body.string())
 
         val chapterList: MutableList<SChapter> = ArrayList()
         responseJson.chapters.forEach { (number, chapter) ->
@@ -121,7 +121,7 @@ class WarForRayuba : HttpSource() {
                     chapter_number = number.toFloat()
                     name = number.toString() + " " + chapter.title
                     date_upload = chapter.last_updated
-                }
+                },
             )
         }
 
@@ -133,7 +133,7 @@ class WarForRayuba : HttpSource() {
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val chapterData: List<PageDto> = json.decodeFromString(response.body!!.string())
+        val chapterData: List<PageDto> = json.decodeFromString(response.body.string())
 
         val pageList = chapterData.mapIndexed { index, page ->
             Page(index, page.src.slice(0..page.src.lastIndexOf(".")), page.src)

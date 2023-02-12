@@ -43,7 +43,7 @@ open class Cubari(override val lang: String) : HttpSource() {
             "(Android ${Build.VERSION.RELEASE}; " +
                 "${Build.MANUFACTURER} ${Build.MODEL}) " +
                 "Tachiyomi/${AppInfo.getVersionName()} " +
-                Build.ID
+                Build.ID,
         )
     }
 
@@ -61,7 +61,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonArray
+        val result = json.parseToJsonElement(response.body.string()).jsonArray
         return parseMangaList(result, SortType.UNPINNED)
     }
 
@@ -79,7 +79,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonArray
+        val result = json.parseToJsonElement(response.body.string()).jsonArray
         return parseMangaList(result, SortType.PINNED)
     }
 
@@ -99,7 +99,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     private fun mangaDetailsParse(response: Response, manga: SManga): SManga {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         return parseManga(result, manga)
     }
 
@@ -124,7 +124,7 @@ open class Cubari(override val lang: String) : HttpSource() {
 
     // Called after the request
     private fun chapterListParse(response: Response, manga: SManga): List<SChapter> {
-        val res = response.body!!.string()
+        val res = response.body.string()
         return parseChapterList(res, manga)
     }
 
@@ -163,7 +163,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     private fun directPageListParse(response: Response): List<Page> {
-        val res = response.body!!.string()
+        val res = response.body.string()
         val pages = json.parseToJsonElement(res).jsonArray
 
         return pages.mapIndexed { i, jsonEl ->
@@ -178,7 +178,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     private fun seriesJsonPageListParse(response: Response, chapter: SChapter): List<Page> {
-        val jsonObj = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val jsonObj = json.parseToJsonElement(response.body.string()).jsonObject
         val groups = jsonObj["groups"]!!.jsonObject
         val groupMap = groups.entries
             .map { Pair(it.value.jsonPrimitive.content, it.key) }
@@ -249,7 +249,7 @@ open class Cubari(override val lang: String) : HttpSource() {
     }
 
     private fun searchMangaParse(response: Response, query: String): MangasPage {
-        val result = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val result = json.parseToJsonElement(response.body.string()).jsonObject
         return parseSearchList(result, query)
     }
 
@@ -352,7 +352,13 @@ open class Cubari(override val lang: String) : HttpSource() {
 
             val descriptionFull = jsonObj["description"]?.jsonPrimitive?.content
             description = descriptionFull?.substringBefore("Tags: ") ?: DESCRIPTION_FALLBACK
-            genre = if (descriptionFull!!.contains("Tags: ")) descriptionFull?.substringAfter("Tags: ") else ""
+            genre = descriptionFull?.let {
+                if (it.contains("Tags: ")) {
+                    it.substringAfter("Tags: ")
+                } else {
+                    ""
+                }
+            } ?: ""
 
             url = mangaReference?.url ?: jsonObj["url"]!!.jsonPrimitive.content
             thumbnail_url = jsonObj["coverUrl"]?.jsonPrimitive?.content
@@ -374,7 +380,7 @@ open class Cubari(override val lang: String) : HttpSource() {
 
         enum class SortType {
             PINNED,
-            UNPINNED
+            UNPINNED,
         }
     }
 }

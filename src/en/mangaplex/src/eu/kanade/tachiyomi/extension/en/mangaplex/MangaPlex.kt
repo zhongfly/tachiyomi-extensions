@@ -38,8 +38,11 @@ class MangaPlex : ParsedHttpSource() {
         manga.url = element.select("h3.post-title a").attr("href").substringBeforeLast("-chapter").replace("$baseUrl/", "/search/").replace("-", "+")
         val mangaTitleSelector = element.select(".post-details p.post-excerpt").text().substringAfter("Read ").substringBefore(" Chapter")
         manga.title =
-            if (mangaTitleSelector.contains("manga", true) || mangaTitleSelector.contains("manhwa", true) || mangaTitleSelector.contains("manhua", true)) mangaTitleSelector.substringBeforeLast(" ")
-            else mangaTitleSelector
+            if (mangaTitleSelector.contains("manga", true) || mangaTitleSelector.contains("manhwa", true) || mangaTitleSelector.contains("manhua", true)) {
+                mangaTitleSelector.substringBeforeLast(" ")
+            } else {
+                mangaTitleSelector
+            }
         return manga
     }
 
@@ -98,19 +101,21 @@ class MangaPlex : ParsedHttpSource() {
 
     override fun chapterFromElement(element: Element): SChapter {
         val chapter = SChapter.create()
-        var chapterNameSelector = element.select(".post-title a").attr("title")
+        val chapterNameSelector = element.select(".post-title a").attr("title")
         chapter.setUrlWithoutDomain(element.select(".post-title a").attr("href"))
         chapter.name =
-            if (chapterNameSelector.startsWith("chapter", true) && chapterNameSelector.contains("–"))
+            if (chapterNameSelector.startsWith("chapter", true) && chapterNameSelector.contains("–")) {
                 chapterNameSelector.substringBefore("–")
-            else chapterNameSelector
+            } else {
+                chapterNameSelector
+            }
 
         return chapter
     }
 
     // pages
     override fun pageListParse(document: Document): List<Page> {
-        return document.select("#the-post .entry-content > img")
+        return document.select("#the-post .entry-content > img").toList()
             .filter { it.attr("src").isNotEmpty() }
             .mapIndexed { i, el -> Page(i, "", el.attr("src")) }
     }

@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.pt.taosect
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -140,7 +139,7 @@ class TaoSect : HttpSource() {
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (query.startsWith(SLUG_PREFIX_SEARCH) && query.removePrefix(SLUG_PREFIX_SEARCH).isNotBlank()) {
-            return mangaDetailsApiRequest(query.removePrefix(SLUG_PREFIX_SEARCH))
+            return mangaDetailsRequest(query.removePrefix(SLUG_PREFIX_SEARCH))
         }
 
         val apiUrl = "$baseUrl/$API_BASE_PATH/projetos".toHttpUrl().newBuilder()
@@ -160,16 +159,11 @@ class TaoSect : HttpSource() {
 
     override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
 
-    // Workaround to allow "Open in browser" use the real URL.
-    override fun fetchMangaDetails(manga: SManga): Observable<SManga> {
-        return client.newCall(mangaDetailsApiRequest(manga.url))
-            .asObservableSuccess()
-            .map { response ->
-                mangaDetailsParse(response).apply { initialized = true }
-            }
-    }
+    override fun getMangaUrl(manga: SManga): String = baseUrl + manga.url
 
-    private fun mangaDetailsApiRequest(mangaUrl: String): Request {
+    override fun mangaDetailsRequest(manga: SManga): Request = mangaDetailsRequest(manga.url)
+
+    private fun mangaDetailsRequest(mangaUrl: String): Request {
         val projectSlug = mangaUrl
             .substringAfterLast("projeto/")
             .substringBefore("/")
@@ -243,6 +237,8 @@ class TaoSect : HttpSource() {
         date_upload = obj.date.toDate()
         url = "/leitor-online/projeto/$projectSlug/${obj.slug}/"
     }
+
+    override fun getChapterUrl(chapter: SChapter): String = baseUrl + chapter.url
 
     override fun pageListRequest(chapter: SChapter): Request {
         val projectSlug = chapter.url
@@ -343,11 +339,11 @@ class TaoSect : HttpSource() {
         GenreFilter(getGenreList()),
         SortFilter(SORT_LIST, DEFAULT_ORDERBY),
         FeaturedFilter(),
-        NsfwFilter()
+        NsfwFilter(),
     )
 
     private inline fun <reified T> Response.parseAs(): T = use {
-        json.decodeFromString(it.body?.string().orEmpty())
+        json.decodeFromString(it.body.string())
     }
 
     private fun String.toDate(): Long {
@@ -365,14 +361,14 @@ class TaoSect : HttpSource() {
     private fun getCountryList(): List<Tag> = listOf(
         Tag("59", "China"),
         Tag("60", "Coréia do Sul"),
-        Tag("13", "Japão")
+        Tag("13", "Japão"),
     )
 
     private fun getStatusList(): List<Tag> = listOf(
         Tag("3", "Ativo"),
         Tag("5", "Cancelado"),
         Tag("4", "Finalizado"),
-        Tag("6", "One-shot")
+        Tag("6", "One-shot"),
     )
 
     private fun getGenreList(): List<Tag> = listOf(
@@ -404,7 +400,7 @@ class TaoSect : HttpSource() {
         Tag("19", "Slice of life"),
         Tag("17", "Sobrenatural"),
         Tag("57", "Tragédia"),
-        Tag("62", "Webtoon")
+        Tag("62", "Webtoon"),
     )
 
     private data class GoogleDriveResponse(val isValid: Boolean, val code: Int) {
@@ -445,7 +441,7 @@ class TaoSect : HttpSource() {
             Tag("date", "Data de criação"),
             Tag("modified", "Data de modificação"),
             Tag("title", "Título"),
-            Tag("views", "Visualizações")
+            Tag("views", "Visualizações"),
         )
     }
 }

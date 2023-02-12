@@ -78,6 +78,7 @@ class NineAnime : ParsedHttpSource() {
             for (filter in if (filters.isEmpty()) getFilterList() else filters) {
                 when (filter) {
                     is GenreFilter -> url += filter.toUriPart() + "_$page.html"
+                    else -> {}
                 }
             }
             GET(url, headers)
@@ -169,7 +170,7 @@ class NineAnime : ParsedHttpSource() {
     override fun getFilterList() = FilterList(
         Filter.Header("Note: ignored if using text search!"),
         Filter.Separator("-----------------"),
-        GenreFilter()
+        GenreFilter(),
     )
 
     private class GenreFilter : UriPartFilter(
@@ -279,8 +280,8 @@ class NineAnime : ParsedHttpSource() {
             Pair("Yaoi", "Yaoi"),
             Pair("Yuri", "Yuri"),
             Pair("Zombies", "Zombies"),
-            Pair("[No Chapters]", "%5Bno+chapters%5D")
-        )
+            Pair("[No Chapters]", "%5Bno+chapters%5D"),
+        ),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :

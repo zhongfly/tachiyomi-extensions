@@ -18,7 +18,7 @@ class TruyenChon : WPComics("TruyenChon", "http://truyenchon.com", "vi", SimpleD
     override fun getFilterList(): FilterList {
         return FilterList(
             StatusFilter(getStatusList()),
-            GenreFilter(getGenreList())
+            GenreFilter(getGenreList()),
         )
     }
     override fun popularMangaFromElement(element: Element): SManga {
@@ -27,14 +27,14 @@ class TruyenChon : WPComics("TruyenChon", "http://truyenchon.com", "vi", SimpleD
                 title = it.text().replace("Truyện tranh ", "")
                 setUrlWithoutDomain(it.attr("abs:href"))
             }
-            thumbnail_url = imageOrNull(element.select("div.image:first-of-type img").first())
+            thumbnail_url = imageOrNull(element.select("div.image:first-of-type img").first()!!)
         }
     }
     override fun searchMangaFromElement(element: Element): SManga {
         return SManga.create().apply {
             title = element.attr("title").replace("Truyện tranh ", "")
             setUrlWithoutDomain(element.attr("href"))
-            thumbnail_url = imageOrNull(element.select("img").first())
+            thumbnail_url = imageOrNull(element.select("img").first()!!)
         }
     }
 }

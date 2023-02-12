@@ -49,12 +49,14 @@ class Tsumino : HttpSource() {
         if (originalResponse.headers("Content-Type").contains("application/octet-stream") &&
             originalResponse.request.url.pathSegments.any { it == "parts" }
         ) {
-            val orgBody = originalResponse.body!!.bytes()
+            val orgBody = originalResponse.body.bytes()
             val newBody = orgBody.toResponseBody("image/jpeg".toMediaTypeOrNull())
             originalResponse.newBuilder()
                 .body(newBody)
                 .build()
-        } else originalResponse
+        } else {
+            originalResponse
+        }
     }
 
     override val client: OkHttpClient = network.cloudflareClient.newBuilder()
@@ -67,7 +69,7 @@ class Tsumino : HttpSource() {
     data class Manga(
         val id: Int,
         val title: String,
-        val thumbnailUrl: String
+        val thumbnailUrl: String,
     )
 
     // Latest
@@ -76,7 +78,7 @@ class Tsumino : HttpSource() {
 
     override fun latestUpdatesParse(response: Response): MangasPage {
         val mangaList = mutableListOf<SManga>()
-        val jsonResponse = json.parseToJsonElement(response.body!!.string()).jsonObject
+        val jsonResponse = json.parseToJsonElement(response.body.string()).jsonObject
 
         for (element in jsonResponse["data"]!!.jsonArray) {
             val manga = json.decodeFromJsonElement<Manga>(element.jsonObject["entry"]!!)
@@ -85,7 +87,7 @@ class Tsumino : HttpSource() {
                     setUrlWithoutDomain("/entry/${manga.id}")
                     title = manga.title
                     thumbnail_url = manga.thumbnailUrl
-                }
+                },
             )
         }
 
@@ -126,8 +128,9 @@ class Tsumino : HttpSource() {
                     add("Tags[$index][Exclude]", entry.exclude.toString())
                 }
 
-                if (f.filterIsInstance<ExcludeParodiesFilter>().first().state)
+                if (f.filterIsInstance<ExcludeParodiesFilter>().first().state) {
                     add("Exclude[]", "6")
+                }
             }
             .build()
 
@@ -225,7 +228,7 @@ class Tsumino : HttpSource() {
         SortFilter(),
         LengthFilter(),
         MinimumRatingFilter(),
-        ExcludeParodiesFilter()
+        ExcludeParodiesFilter(),
     )
 
     class TagFilter : AdvSearchEntryFilter("Tags", 1)
@@ -259,7 +262,7 @@ class Tsumino : HttpSource() {
         Any(0),
         Short(1),
         Medium(2),
-        Long(3)
+        Long(3),
     }
 
     companion object {

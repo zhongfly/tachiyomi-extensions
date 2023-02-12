@@ -6,8 +6,12 @@ ext {
     extName = 'Tapas'
     pkgNameSuffix = 'en.tapastic'
     extClass = '.Tapastic'
-    extVersionCode = 18
+    extVersionCode = 19
     isNsfw = true
 }
 
 apply from: "$rootDir/common.gradle"
+
+dependencies {
+    implementation(project(':lib-textinterceptor'))
+}

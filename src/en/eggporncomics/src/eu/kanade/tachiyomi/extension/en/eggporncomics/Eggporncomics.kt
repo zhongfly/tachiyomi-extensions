@@ -126,7 +126,7 @@ class Eggporncomics : ParsedHttpSource() {
 
     override fun mangaDetailsParse(document: Document): SManga {
         return SManga.create().apply {
-            thumbnail_url = document.select(pageListSelector).first().toFullSizeImage()
+            thumbnail_url = document.select(pageListSelector).first()!!.toFullSizeImage()
             description = document.select("div.links ul").joinToString("\n") { element ->
                 element.select("a")
                     .joinToString(prefix = element.select("span").text().replace(descriptionPrefixRegex, ": ")) { it.text() }
@@ -144,7 +144,7 @@ class Eggporncomics : ParsedHttpSource() {
                 date_upload = response.asJsoup().select("div.info > div.meta li:contains(days ago)").firstOrNull()
                     ?.let { Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -(it.text().substringBefore(" ").toIntOrNull() ?: 0)) }.timeInMillis }
                     ?: 0
-            }
+            },
         )
     }
 
@@ -172,7 +172,7 @@ class Eggporncomics : ParsedHttpSource() {
         Filter.Header("Leave query blank to use filters"),
         Filter.Separator(),
         CategoryFilter("Category", getCategoryList),
-        ComicsFilter("Comics", getComicsList)
+        ComicsFilter("Comics", getComicsList),
     )
 
     private class CategoryFilter(name: String, vals: Array<Pair<String, String?>>) : UriPartFilter(name, vals)
@@ -194,7 +194,7 @@ class Eggporncomics : ParsedHttpSource() {
         Pair("Porn Comix", "16/porn-comix"),
         Pair("Western", "12/western"),
         Pair("Yaoi/Gay", "8/yaoigay"),
-        Pair("Yuri and Lesbian", "9/yuri-and-lesbian")
+        Pair("Yuri and Lesbian", "9/yuri-and-lesbian"),
     )
 
     private val getComicsList: Array<Pair<String, String?>> = arrayOf(
@@ -255,7 +255,7 @@ class Eggporncomics : ParsedHttpSource() {
         Pair("Superheroine Central", "615/superheroine-central"),
         Pair("The Cummoner", "3034/the-cummoner"),
         Pair("The Rock Cocks", "3031/the-rock-cocks"),
-        Pair("ZZZ Comics", "1718/zzz-comics")
+        Pair("ZZZ Comics", "1718/zzz-comics"),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String?>>) :

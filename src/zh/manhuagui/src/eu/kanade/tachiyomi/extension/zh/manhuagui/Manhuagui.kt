@@ -58,10 +58,11 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
     }
 
     override val baseUrl =
-        if (preferences.getBoolean(SHOW_ZH_HANT_WEBSITE_PREF, false))
+        if (preferences.getBoolean(SHOW_ZH_HANT_WEBSITE_PREF, false)) {
             "https://tw.$baseHost"
-        else
+        } else {
             "https://www.$baseHost"
+        }
     override val lang = "zh"
     override val supportsLatest = true
 
@@ -72,19 +73,20 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
 
     // Add rate limit to fix manga thumbnail load failure
     override val client: OkHttpClient =
-        if (getShowR18())
+        if (getShowR18()) {
             network.client.newBuilder()
                 .rateLimitHost(baseHttpUrl, preferences.getString(MAINSITE_RATELIMIT_PREF, MAINSITE_RATELIMIT_DEFAULT_VALUE)!!.toInt(), 10)
                 .rateLimitHost(imageServer[0].toHttpUrlOrNull()!!, preferences.getString(IMAGE_CDN_RATELIMIT_PREF, IMAGE_CDN_RATELIMIT_DEFAULT_VALUE)!!.toInt())
                 .rateLimitHost(imageServer[1].toHttpUrlOrNull()!!, preferences.getString(IMAGE_CDN_RATELIMIT_PREF, IMAGE_CDN_RATELIMIT_DEFAULT_VALUE)!!.toInt())
                 .addNetworkInterceptor(AddCookieHeaderInterceptor(baseHttpUrl.host))
                 .build()
-        else
+        } else {
             network.client.newBuilder()
                 .rateLimitHost(baseHttpUrl, preferences.getString(MAINSITE_RATELIMIT_PREF, MAINSITE_RATELIMIT_DEFAULT_VALUE)!!.toInt(), 10)
                 .rateLimitHost(imageServer[0].toHttpUrlOrNull()!!, preferences.getString(IMAGE_CDN_RATELIMIT_PREF, IMAGE_CDN_RATELIMIT_DEFAULT_VALUE)!!.toInt())
                 .rateLimitHost(imageServer[1].toHttpUrlOrNull()!!, preferences.getString(IMAGE_CDN_RATELIMIT_PREF, IMAGE_CDN_RATELIMIT_DEFAULT_VALUE)!!.toInt())
                 .build()
+        }
 
     // Add R18 verification cookie
     class AddCookieHeaderInterceptor(private val baseHost: String) : Interceptor {
@@ -95,7 +97,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
                     return chain.proceed(
                         chain.request().newBuilder()
                             .header("Cookie", "$originalCookies; isAdult=1")
-                            .build()
+                            .build(),
                     )
                 }
             }
@@ -115,7 +117,9 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             val params = filters.map {
                 if (it !is SortFilter && it is UriPartFilter) {
                     it.toUriPart()
-                } else ""
+                } else {
+                    ""
+                }
             }.filter { it != "" }.joinToString("_")
 
             val sortOrder = filters.filterIsInstance<SortFilter>()
@@ -129,10 +133,10 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             if (params != "") {
                 url += "/$params"
             }
-            if (sortOrder == "") {
-                url += "/index_p$page.html"
+            url += if (sortOrder == "") {
+                "/index_p$page.html"
             } else {
-                url += "/${sortOrder}_p$page.html"
+                "/${sortOrder}_p$page.html"
             }
             return GET(url, headers)
         }
@@ -162,13 +166,13 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
                             headersBuilder()
                                 .set("Referer", manga.url)
                                 .set("X-Requested-With", "XMLHttpRequest")
-                                .build()
-                        )
+                                .build(),
+                        ),
                     ).enqueue(
                         object : Callback {
                             override fun onFailure(call: Call, e: IOException) = e.printStackTrace()
                             override fun onResponse(call: Call, response: Response) = response.close()
-                        }
+                        },
                     )
 
                     client.newCall(
@@ -176,13 +180,13 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
                             "$baseUrl/tools/vote.ashx?act=get&bid=$bid",
                             headersBuilder()
                                 .set("Referer", manga.url)
-                                .set("X-Requested-With", "XMLHttpRequest").build()
-                        )
+                                .set("X-Requested-With", "XMLHttpRequest").build(),
+                        ),
                     ).enqueue(
                         object : Callback {
                             override fun onFailure(call: Call, e: IOException) = e.printStackTrace()
                             override fun onResponse(call: Call, response: Response) = response.close()
-                        }
+                        },
                     )
                 }
             }
@@ -253,16 +257,17 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
     override fun latestUpdatesFromElement(element: Element) = mangaFromElement(element)
     private fun mangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        element.select("a.bcover").first().let {
+        element.select("a.bcover").first()!!.let {
             manga.url = it.attr("href")
             manga.title = it.attr("title").trim()
 
             // Fix thumbnail lazy load
-            val thumbnailElement = it.select("img").first()
-            manga.thumbnail_url = if (thumbnailElement.hasAttr("src"))
+            val thumbnailElement = it.select("img").first()!!
+            manga.thumbnail_url = if (thumbnailElement.hasAttr("src")) {
                 thumbnailElement.attr("abs:src")
-            else
+            } else {
                 thumbnailElement.attr("abs:data-src")
+            }
         }
         return manga
     }
@@ -270,10 +275,10 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
     override fun searchMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
 
-        element.select("div.book-detail").first().let {
-            manga.url = it.select("dl > dt > a").first().attr("href")
-            manga.title = it.select("dl > dt > a").first().attr("title").trim()
-            manga.thumbnail_url = element.select("div.book-cover > a.bcover > img").first().attr("abs:src")
+        element.select("div.book-detail").first()!!.let {
+            manga.url = it.select("dl > dt > a").first()!!.attr("href")
+            manga.title = it.select("dl > dt > a").first()!!.attr("title").trim()
+            manga.thumbnail_url = element.select("div.book-cover > a.bcover > img").first()!!.attr("abs:src")
         }
 
         return manga
@@ -292,15 +297,15 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
                 val decodedHiddenChapterList = QuickJs.create().use {
                     it.evaluate(
                         jsDecodeFunc +
-                            """LZString.decompressFromBase64('${hiddenEncryptedChapterList.`val`()}');"""
+                            """LZString.decompressFromBase64('${hiddenEncryptedChapterList.`val`()}');""",
                     ) as String
                 }
                 val hiddenChapterList = Jsoup.parse(decodedHiddenChapterList, response.request.url.toString())
                 if (hiddenChapterList != null) {
                     // Replace R18 warning with actual chapter list
-                    document.select("#erroraudit_show").first().replaceWith(hiddenChapterList)
+                    document.select("#erroraudit_show").first()!!.replaceWith(hiddenChapterList)
                     // Remove hidden chapter list element
-                    document.select("#__VIEWSTATE").first().remove()
+                    document.select("#__VIEWSTATE").first()!!.remove()
                 }
             } else {
                 // "You need to enable R18 switch and restart Tachiyomi to read this manga"
@@ -313,12 +318,12 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
         chapterList.forEach {
             val currentChapter = SChapter.create()
             currentChapter.url = it.attr("href")
-            currentChapter.name = it?.attr("title")?.trim() ?: it.select("span").first().ownText()
+            currentChapter.name = it?.attr("title")?.trim() ?: it.select("span").first()!!.ownText()
             currentChapter.chapter_number = chNumRegex.find(currentChapter.name)?.value?.toFloatOrNull() ?: -1F
 
             // Manhuagui only provide upload date for latest chapter
             if (currentChapter.url == latestChapterHref) {
-                currentChapter.date_upload = parseDate(document.select("div.book-detail > ul.detail-list > li.status > span > span.red").last())
+                currentChapter.date_upload = parseDate(document.select("div.book-detail > ul.detail-list > li.status > span > span.red").last()!!)
             }
             chapters.add(currentChapter)
         }
@@ -344,7 +349,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
         manga.thumbnail_url = document.select("p.hcover > img").attr("abs:src")
         manga.author = document.select("span:contains(漫画作者) > a , span:contains(漫畫作者) > a").text().trim().replace(" ", ", ")
         manga.genre = document.select("span:contains(漫画剧情) > a , span:contains(漫畫劇情) > a").text().trim().replace(" ", ", ")
-        manga.status = when (document.select("div.book-detail > ul.detail-list > li.status > span > span").first().text()) {
+        manga.status = when (document.select("div.book-detail > ul.detail-list > li.status > span > span").first()!!.text()) {
             "连载中" -> SManga.ONGOING
             "已完结" -> SManga.COMPLETED
             "連載中" -> SManga.ONGOING
@@ -376,8 +381,9 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
         // R18 warning element (#erroraudit_show) is remove by web page javascript, so here the warning element
         // will always exist if this manga is R18 limited whether R18 verification cookies has been sent or not.
         // But it will not interfere parse mechanism below.
-        if (document.select("#erroraudit_show").first() != null && !getShowR18())
+        if (document.select("#erroraudit_show").first() != null && !getShowR18()) {
             error("R18作品显示开关未开启或未生效") // "R18 setting didn't enabled or became effective"
+        }
 
         val html = document.html()
         val imgCode = re.find(html)?.groups?.get(1)?.value
@@ -498,7 +504,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
     private open class UriPartFilter(
         displayName: String,
         val pair: Array<Pair<String, String>>,
-        defaultState: Int = 0
+        defaultState: Int = 0,
     ) : Filter.Select<String>(displayName, pair.map { it.first }.toTypedArray(), defaultState) {
         open fun toUriPart() = pair[state].second
     }
@@ -510,7 +516,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
         ReaderFilter(),
         PublishDateFilter(),
         FirstLetterFilter(),
-        StatusFilter()
+        StatusFilter(),
     )
 
     private class SortFilter : UriPartFilter(
@@ -519,8 +525,8 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("人气最旺", "view"), // Same to popularMangaRequest()
             Pair("最新发布", ""), // Publish date
             Pair("最新更新", "update"),
-            Pair("评分最高", "rate")
-        )
+            Pair("评分最高", "rate"),
+        ),
     )
 
     private class LocaleFilter : UriPartFilter(
@@ -532,8 +538,8 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("其它", "other"),
             Pair("欧美", "europe"),
             Pair("内地", "china"),
-            Pair("韩国", "korea")
-        )
+            Pair("韩国", "korea"),
+        ),
     )
 
     private class GenreFilter : UriPartFilter(
@@ -577,8 +583,8 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("音乐", "yinyue"),
             Pair("舞蹈", "wudao"),
             Pair("杂志", "zazhi"),
-            Pair("黑道", "heidao")
-        )
+            Pair("黑道", "heidao"),
+        ),
     )
 
     private class ReaderFilter : UriPartFilter(
@@ -590,7 +596,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("青年", "qingnian"),
             Pair("儿童", "ertong"),
             Pair("通用", "tongyong"),
-        )
+        ),
     )
 
     private class PublishDateFilter : UriPartFilter(
@@ -612,7 +618,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("90年代", "199x"),
             Pair("80年代", "198x"),
             Pair("更早", "197x"),
-        )
+        ),
     )
 
     private class FirstLetterFilter : UriPartFilter(
@@ -645,8 +651,8 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("X", "x"),
             Pair("Y", "y"),
             Pair("Z", "z"),
-            Pair("0-9", "0-9")
-        )
+            Pair("0-9", "0-9"),
+        ),
     )
 
     private class StatusFilter : UriPartFilter(
@@ -655,7 +661,7 @@ class Manhuagui : ConfigurableSource, ParsedHttpSource() {
             Pair("全部", ""),
             Pair("连载", "lianzai"),
             Pair("完结", "wanjie"),
-        )
+        ),
     )
 
     companion object {

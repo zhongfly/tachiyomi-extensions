@@ -65,9 +65,13 @@ abstract class SandraAndWoo(
         val (_, title, number, backupNumber) = titleMatch.groupValues
 
         val chapterNumber =
-            if (number.isNotEmpty()) number.toFloat()
-            else if (backupNumber.isNotEmpty()) backupNumber.toFloat()
-            else roundHalfwayUp(lastChapterNumber)
+            if (number.isNotEmpty()) {
+                number.toFloat()
+            } else if (backupNumber.isNotEmpty()) {
+                backupNumber.toFloat()
+            } else {
+                roundHalfwayUp(lastChapterNumber)
+            }
         val chapter = SChapter.create().apply {
             url = path
             name = title
@@ -93,7 +97,7 @@ abstract class SandraAndWoo(
     private fun pageImageSelector() = "#comic img"
 
     override fun pageListParse(document: Document): List<Page> {
-        val img = document.selectFirst(pageImageSelector())
+        val img = document.selectFirst(pageImageSelector())!!
         val path = img.attr("src")
 
         return listOf(Page(0, "", "${baseUrl}$path"))

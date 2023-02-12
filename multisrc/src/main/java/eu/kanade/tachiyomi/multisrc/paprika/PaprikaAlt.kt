@@ -14,7 +14,7 @@ import org.jsoup.nodes.Element
 abstract class PaprikaAlt(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : Paprika(name, baseUrl, lang) {
     override fun popularMangaSelector() = "div.anipost"
 
@@ -41,6 +41,7 @@ abstract class PaprikaAlt(
                 when (filter) {
                     is GenreFilter -> url.addPathSegment(filter.toUriPart())
                     is OrderFilter -> url.addQueryParameter("orderby", filter.toUriPart())
+                    else -> {}
                 }
             }
             url.addQueryParameter("page", page.toString())

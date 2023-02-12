@@ -66,6 +66,7 @@ class MyHentaiComics : ParsedHttpSource() {
             for (filter in if (filters.isEmpty()) getFilterList() else filters) {
                 when (filter) {
                     is GenreFilter -> url += filter.toUriPart() + "?page=$page"
+                    else -> {}
                 }
             }
             GET(url, headers)
@@ -94,7 +95,7 @@ class MyHentaiComics : ParsedHttpSource() {
             artist = tags.first.joinToString { it.text().substringAfter(" ") }
             author = artist
             genre = tags.second.joinToString { it.text() }
-            thumbnail_url = document.select("img.g-thumbnail").first().attr("abs:src").replace("/thumbs/", "/resizes/")
+            thumbnail_url = document.select("img.g-thumbnail").first()!!.attr("abs:src").replace("/thumbs/", "/resizes/")
         }
     }
 
@@ -106,8 +107,8 @@ class MyHentaiComics : ParsedHttpSource() {
                 SChapter.create().apply {
                     name = "Chapter"
                     url = manga.url
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -141,7 +142,7 @@ class MyHentaiComics : ParsedHttpSource() {
     override fun getFilterList() = FilterList(
         Filter.Header("Cannot combine search types!"),
         Filter.Separator("-----------------"),
-        GenreFilter()
+        GenreFilter(),
     )
 
     private class GenreFilter : UriPartFilter(
@@ -182,8 +183,8 @@ class MyHentaiComics : ParsedHttpSource() {
             Pair("Rape", "/index.php/tag/2433"),
             Pair("Strap-On", "/index.php/tag/2441"),
             Pair("Superheroes", "/index.php/tag/2443"),
-            Pair("Tentacles", "/index.php/tag/2444")
-        )
+            Pair("Tentacles", "/index.php/tag/2444"),
+        ),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :

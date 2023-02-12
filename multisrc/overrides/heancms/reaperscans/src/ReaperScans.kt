@@ -5,11 +5,13 @@ import eu.kanade.tachiyomi.multisrc.heancms.HeanCms
 import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import java.text.SimpleDateFormat
+import java.util.TimeZone
 
 class ReaperScans : HeanCms(
     "Reaper Scans",
     "https://reaperscans.net",
-    "pt-BR"
+    "pt-BR",
 ) {
 
     override val client: OkHttpClient = super.client.newBuilder()
@@ -20,6 +22,10 @@ class ReaperScans : HeanCms(
     override val versionId = 2
 
     override val coverPath: String = ""
+
+    override val dateFormat: SimpleDateFormat = super.dateFormat.apply {
+        timeZone = TimeZone.getTimeZone("GMT+01:00")
+    }
 
     override fun getGenreList(): List<Genre> = listOf(
         Genre("Artes Marciais", 2),
@@ -45,6 +51,6 @@ class ReaperScans : HeanCms(
         Genre("Segunda vida", 4),
         Genre("Seinen", 1),
         Genre("Shounen", 13),
-        Genre("Terror", 6)
+        Genre("Terror", 6),
     )
 }

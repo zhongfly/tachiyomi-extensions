@@ -1,0 +1,17 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlinx-serialization'
+
+ext {
+    extName = 'MangaFox'
+    pkgNameSuffix = 'en.mangafox'
+    extClass = '.MangaFox'
+    extVersionCode = 6
+    isNsfw = true
+}
+
+dependencies {
+    implementation(project(":lib-unpacker"))
+}
+
+apply from: "$rootDir/common.gradle"

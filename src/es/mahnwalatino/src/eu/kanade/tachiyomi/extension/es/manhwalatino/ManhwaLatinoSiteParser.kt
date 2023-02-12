@@ -24,7 +24,7 @@ import java.util.Locale
 class ManhwaLatinoSiteParser(
     private val baseUrl: String,
     private val client: OkHttpClient,
-    private val headers: Headers
+    private val headers: Headers,
 ) {
 
     /**
@@ -32,36 +32,6 @@ class ManhwaLatinoSiteParser(
      */
     enum class SearchType {
         SEARCH_FREE, SEARCH_FILTER
-    }
-
-    /**
-     * Type of manga
-     */
-    enum class MangaType {
-        ALL, ADULT, GAY, FIN;
-
-        // Static Enum Function
-        companion object {
-            fun isForAdults(mangaTypes: List<MangaType>): Boolean {
-                for (type in mangaTypes) {
-                    when (type) {
-                        ADULT, GAY -> return true
-                        else -> {}
-                    }
-                }
-                return false
-            }
-        }
-
-        // CSS Class to search in the title of the manga
-        fun getBadge(): String {
-            return when (this) {
-                ADULT -> "adult"
-                GAY -> "gay"
-                FIN -> "fin"
-                ALL -> ""
-            }
-        }
     }
 
     /**
@@ -76,7 +46,7 @@ class ManhwaLatinoSiteParser(
         val manga = SManga.create()
         manga.url =
             getUrlWithoutDomain(
-                element.select(MLConstants.latestUpdatesSelectorUrl).first().attr("abs:href")
+                element.select(MLConstants.latestUpdatesSelectorUrl).first()!!.attr("abs:href"),
             )
         manga.title = element.select(MLConstants.latestUpdatesSelectorTitle).text().trim()
         manga.thumbnail_url = getImage(element.select(MLConstants.latestUpdatesSelectorThumbnailUrl)).replace("//", "/")
@@ -116,7 +86,7 @@ class ManhwaLatinoSiteParser(
         return document.select(MLConstants.searchSiteMangasHTMLSelector).map {
             val manga = SManga.create()
             manga.url = getUrlWithoutDomain(
-                it.select(MLConstants.searchPageUrlHTMLSelector).attr("abs:href")
+                it.select(MLConstants.searchPageUrlHTMLSelector).attr("abs:href"),
             )
             manga.title = it.select(MLConstants.searchPageTitleHTMLSelector).text().trim()
             manga.thumbnail_url = getImage(it.select(MLConstants.searchPageThumbnailUrlMangaHTMLSelector))
@@ -138,7 +108,7 @@ class ManhwaLatinoSiteParser(
     fun getMangaFromList(element: Element): SManga {
         val manga = SManga.create()
         manga.url = getUrlWithoutDomain(
-            element.select(MLConstants.popularGenreUrlHTMLSelector).attr("abs:href")
+            element.select(MLConstants.popularGenreUrlHTMLSelector).attr("abs:href"),
         )
         manga.title = element.select(MLConstants.popularGenreTitleHTMLSelector).text().trim()
         manga.thumbnail_url = getImage(element.select(MLConstants.popularGenreThumbnailUrlMangaHTMLSelector))
@@ -154,7 +124,6 @@ class ManhwaLatinoSiteParser(
         val manga = SManga.create()
 
         val titleElements = document.select("#manga-title h1")
-        val mangaType = getMangaBadges(titleElements)
         val descriptionList =
             document.select(MLConstants.mangaDetailsDescriptionHTMLSelector).map { it.text() }
         val author = document.select(MLConstants.mangaDetailsAuthorHTMLSelector).text()
@@ -164,7 +133,7 @@ class ManhwaLatinoSiteParser(
         val tagList = document.select(MLConstants.mangaDetailsTagsHTMLSelector).map { it.text() }
         val genreTagList = genrelist + tagList
 
-        manga.title = titleElements.last().ownText().trim()
+        manga.title = titleElements.last()!!.ownText().trim()
         manga.thumbnail_url = getImage(document.select(MLConstants.mangaDetailsThumbnailUrlHTMLSelector))
         manga.description = descriptionList.joinToString("\n")
         manga.author = author.ifBlank { "Autor Desconocido" }
@@ -174,33 +143,13 @@ class ManhwaLatinoSiteParser(
         return manga
     }
 
-    /**
-     * Types of the Manga
-     * Return aList with all Types from a Manga
-     *  for example Adults, Gay
-     *  if the list is empty the manga is for everyone
-     */
-    private fun getMangaBadges(titleBadges: Elements): List<MangaType> {
-        val types = mutableListOf<MangaType>()
-
-        for (badge in titleBadges.select("span")) {
-            if (badge.hasClass(MangaType.ADULT.getBadge()))
-                types.add(MangaType.ADULT)
-            if (badge.hasClass(MangaType.GAY.getBadge()))
-                types.add(MangaType.GAY)
-            if (badge.hasClass(MangaType.FIN.getBadge()))
-                types.add(MangaType.FIN)
-        }
-        return types
-    }
-
     private fun findMangaStatus(tagList: List<String>, elements: Elements): Int {
         if (tagList.contains("Fin")) {
             return SManga.COMPLETED
         }
         elements.forEach { element ->
-            val key = element.select("div.summary-heading h5")?.text()?.trim()
-            val value = element.select("div.summary-content")?.text()?.trim()
+            val key = element.select("div.summary-heading h5").text().trim()
+            val value = element.select("div.summary-content").text().trim()
 
             if (key == "Estado del comic") {
                 return when (value) {
@@ -327,8 +276,9 @@ class ManhwaLatinoSiteParser(
             searchType = SearchType.SEARCH_FILTER
             // Append uri filters
             filters.forEach {
-                if (it is UriFilter)
+                if (it is UriFilter) {
                     it.addToUri(uri)
+                }
             }
             uri.appendPath("page").appendPath(page.toString())
         }
@@ -373,8 +323,9 @@ class ManhwaLatinoSiteParser(
      */
     private fun getImage(elements: Elements): String {
         var imageUrl: String = elements.attr(MLConstants.imageAttribute)
-        if (imageUrl.isEmpty())
+        if (imageUrl.isEmpty()) {
             imageUrl = elements.attr("abs:src")
+        }
         return imageUrl
     }
 
@@ -385,8 +336,9 @@ class ManhwaLatinoSiteParser(
      */
     private fun getImage(element: Element): String {
         var imageUrl = element.attr(MLConstants.imageAttribute)
-        if (imageUrl.isEmpty())
+        if (imageUrl.isEmpty()) {
             imageUrl = element.attr("abs:src")
+        }
         return imageUrl
     }
 }

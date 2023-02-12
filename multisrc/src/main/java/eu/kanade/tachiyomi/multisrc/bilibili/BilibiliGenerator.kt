@@ -10,7 +10,7 @@ class BilibiliGenerator : ThemeSourceGenerator {
 
     override val themeClass = "Bilibili"
 
-    override val baseVersionCode: Int = 5
+    override val baseVersionCode: Int = 8
 
     override val sources = listOf(
         MultiLang(
@@ -18,7 +18,7 @@ class BilibiliGenerator : ThemeSourceGenerator {
             baseUrl = "https://www.bilibilicomics.com",
             langs = listOf("en", "zh-Hans", "id", "es", "fr"),
             className = "BilibiliComicsFactory",
-            overrideVersionCode = 3
+            overrideVersionCode = 3,
         ),
         SingleLang(
             name = "BILIBILI MANGA",
@@ -26,8 +26,8 @@ class BilibiliGenerator : ThemeSourceGenerator {
             lang = "zh-Hans",
             className = "BilibiliManga",
             sourceName = "哔哩哔哩漫画",
-            overrideVersionCode = 2
-        )
+            overrideVersionCode = 2,
+        ),
     )
 
     companion object {

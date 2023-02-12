@@ -40,12 +40,12 @@ class WuqiManga : SinMH("57漫画", "http://www.wuqimh.net") {
     }
 
     override fun mangaDetailsParse(document: Document) = super.mangaDetailsParse(document).apply {
-        val comment = document.selectFirst(".book-title > h2").text()
+        val comment = document.selectFirst(".book-title > h2")!!.text()
         if (comment.isNotEmpty()) description = "$comment\n\n$description"
     }
 
     override fun mangaDetailsParseDefaultGenre(document: Document, detailsList: Element): String =
-        document.selectFirst("div.crumb").select("a[href^=/list/]")
+        document.selectFirst("div.crumb")!!.select("a[href^=/list/]")
             .map { it.text().removeSuffix("年").removeSuffix("漫画") }
             .filter { it.isNotEmpty() }.joinToString(", ")
 
@@ -55,14 +55,14 @@ class WuqiManga : SinMH("57漫画", "http://www.wuqimh.net") {
 
     override val imageHost: String by lazy {
         client.newCall(GET("$mobileUrl/templates_pc/default/scripts/configs.js", headers)).execute().let {
-            Regex("""\['(.+?)']""").find(it.body!!.string())!!.groupValues[1].run { "http://$this" }
+            Regex("""\['(.+?)']""").find(it.body.string())!!.groupValues[1].run { "http://$this" }
         }
     }
 
     override fun pageListRequest(chapter: SChapter) = GET(baseUrl + chapter.url, headers)
 
     override fun pageListParse(document: Document): List<Page> {
-        val script = document.selectFirst("body > script").html()
+        val script = document.selectFirst("body > script")!!.html()
         val unpacked = Unpacker.unpack(script, ":[", "]")
             .ifEmpty { return emptyList() }
             .replace("\\", "")
@@ -85,15 +85,16 @@ class WuqiManga : SinMH("57漫画", "http://www.wuqimh.net") {
         document.select(Evaluator.Class("filter")).forEach { row ->
             val tags = row.select(linkSelector)
             if (tags.isEmpty()) return@forEach
-            val name = row.selectFirst(labelSelector).text().removeSuffix("：")
+            val name = row.selectFirst(labelSelector)!!.text().removeSuffix("：")
             if (!filterMap.containsKey(name)) {
                 filterMap[name] = LinkedHashMap(tags.size * 2)
             }
             val tagMap = filterMap[name]!!
             for (tag in tags) {
                 val tagName = tag.text()
-                if (!tagMap.containsKey(tagName))
+                if (!tagMap.containsKey(tagName)) {
                     tagMap[tagName] = tag.attr("href").removePrefix("/list/").substringBeforeLast("-order-")
+                }
             }
         }
         categories = filterMap.map {

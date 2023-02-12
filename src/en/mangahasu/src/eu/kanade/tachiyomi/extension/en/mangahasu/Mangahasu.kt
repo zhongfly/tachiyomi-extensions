@@ -53,8 +53,8 @@ class Mangahasu : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        manga.thumbnail_url = element.select("img").first().attr("src")
-        element.select("a:has(h3.name-manga), a.name-manga").first().let {
+        manga.thumbnail_url = element.select("img").first()!!.attr("src")
+        element.select("a:has(h3.name-manga), a.name-manga").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.text()
         }
@@ -119,7 +119,7 @@ class Mangahasu : ParsedHttpSource() {
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select(".info-c").first()
+        val infoElement = document.select(".info-c").first()!!
 
         val manga = SManga.create()
         manga.author = isUpdating(infoElement.select(".info")[0].text())
@@ -145,7 +145,7 @@ class Mangahasu : ParsedHttpSource() {
     override fun chapterListSelector() = "tbody tr"
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlElement = element.select("a").first()
+        val urlElement = element.select("a").first()!!
         val chapter = SChapter.create()
         chapter.setUrlWithoutDomain(urlElement.attr("href"))
         urlElement.select("span.name-manga").remove()
@@ -216,7 +216,7 @@ class Mangahasu : ParsedHttpSource() {
         OrderByFilter(),
         StatusFilter(),
         TypeFilter(),
-        GenreFilter(getGenreList())
+        GenreFilter(getGenreList()),
     )
 
     private class AuthorFilter : Filter.Text("Author")
@@ -234,8 +234,8 @@ class Mangahasu : ParsedHttpSource() {
             Pair("Any", ""),
             Pair("Manga", "10"),
             Pair("Manhwa", "12"),
-            Pair("Manhua", "19")
-        )
+            Pair("Manhua", "19"),
+        ),
     )
 
     private class OrderByFilter : Filter.Sort(
@@ -245,7 +245,7 @@ class Mangahasu : ParsedHttpSource() {
             "Views",
             "Subscribers",
         ),
-        Selection(0, false)
+        Selection(0, false),
     )
 
     private class StatusFilter : UriPartFilter(
@@ -253,8 +253,8 @@ class Mangahasu : ParsedHttpSource() {
         arrayOf(
             Pair("Any", ""),
             Pair("Completed", "1"),
-            Pair("Ongoing", "2")
-        )
+            Pair("Ongoing", "2"),
+        ),
     )
 
     private class Genre(name: String, val id: String) : Filter.TriState(name)
@@ -364,6 +364,6 @@ class Mangahasu : ParsedHttpSource() {
         Genre("Yaoi", "43"),
         Genre("Youkai", "106"),
         Genre("Yuri", "44"),
-        Genre("Zombies", "79")
+        Genre("Zombies", "79"),
     )
 }

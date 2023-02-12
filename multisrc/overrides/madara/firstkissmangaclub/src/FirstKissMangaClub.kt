@@ -7,10 +7,10 @@ import java.util.concurrent.TimeUnit
 class FirstKissMangaClub : Madara(
     "1stKissManga.Club",
     "https://1stkissmanga.club",
-    "en"
+    "en",
 ) {
 
     override val client = network.cloudflareClient.newBuilder()
-        .rateLimit(1, 2, TimeUnit.SECONDS)
+        .rateLimit(1, 3, TimeUnit.SECONDS)
         .build()
 }

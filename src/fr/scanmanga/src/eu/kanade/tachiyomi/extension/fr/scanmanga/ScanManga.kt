@@ -43,7 +43,7 @@ class ScanManga : ParsedHttpSource() {
                 .header("Cookie", "$originalCookies; _ga=GA1.2.${shuffle("123456789")}.${System.currentTimeMillis() / 1000}")
                 .build()
             chain.proceed(newReq)
-        }.build()!!
+        }.build()
 
     private val json: Json by injectLazy()
 
@@ -81,7 +81,8 @@ class ScanManga : ParsedHttpSource() {
             /*thumbnail_url = element.select(".logo_manga img").let {
                 if (it.hasAttr("data-original"))
                     it.attr("data-original") else it.attr("src")
-            }*/ // Better not use it, width is too large, which results in terrible image
+            }*/
+            // Better not use it, width is too large, which results in terrible image
         }
     }
 
@@ -128,7 +129,7 @@ class ScanManga : ParsedHttpSource() {
     }
 
     private fun parseMangaFromJson(response: Response): MangasPage {
-        val jsonRaw = response.body!!.string()
+        val jsonRaw = response.body.string()
 
         if (jsonRaw.isEmpty()) {
             return MangasPage(emptyList(), hasNextPage = false)

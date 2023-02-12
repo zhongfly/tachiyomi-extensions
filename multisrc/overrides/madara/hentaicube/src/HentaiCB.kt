@@ -9,7 +9,7 @@ import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class HentaiCB : Madara("Hentai CB", "https://hentaicb.top", "vi", SimpleDateFormat("dd/MM/yyyy", Locale("vi"))) {
+class HentaiCB : Madara("Hentai CB", "https://hentaicb.xyz", "vi", SimpleDateFormat("dd/MM/yyyy", Locale("vi"))) {
     override val id: Long = 823638192569572166
     override val useLoadMoreSearch = false
     override fun pageListParse(document: Document): List<Page> {
@@ -17,16 +17,16 @@ class HentaiCB : Madara("Hentai CB", "https://hentaicb.top", "vi", SimpleDateFor
     }
     override fun popularMangaRequest(page: Int): Request {
         return GET(
-            "$baseUrl/manga/?m_orderby=trending",
+            "$baseUrl/manga/page/$page/?m_orderby=views",
             formHeaders,
-            CacheControl.FORCE_NETWORK
+            CacheControl.FORCE_NETWORK,
         )
     }
     override fun latestUpdatesRequest(page: Int): Request {
         return GET(
-            "$baseUrl/manga/?m_orderby=latest",
+            "$baseUrl/manga/page/$page/?m_orderby=latest",
             formHeaders,
-            CacheControl.FORCE_NETWORK
+            CacheControl.FORCE_NETWORK,
         )
     }
 }

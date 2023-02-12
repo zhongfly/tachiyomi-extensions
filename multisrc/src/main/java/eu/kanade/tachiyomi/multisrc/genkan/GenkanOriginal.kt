@@ -16,7 +16,7 @@ import org.jsoup.select.Elements
 open class GenkanOriginal(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : Genkan(name, baseUrl, lang) {
 
     private var searchQuery = ""
@@ -49,7 +49,7 @@ open class GenkanOriginal(
     // search the given document for matches
     private fun getMatchesFrom(document: Document): MutableList<SManga> {
         val searchMatches = mutableListOf<SManga>()
-        document.select(searchMangaSelector())
+        document.select(searchMangaSelector()).toList()
             .filter { it.text().contains(searchQuery, ignoreCase = true) }
             .map { searchMatches.add(searchMangaFromElement(it)) }
 

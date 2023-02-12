@@ -1,15 +1,20 @@
 package eu.kanade.tachiyomi.extension.en.nana
 
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.asObservable
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import rx.Observable
@@ -41,6 +46,13 @@ class Nana : ParsedHttpSource() {
         searchMangaNextPageSelector()
 
     // Search
+    // The search returns 404 when there's no results.
+    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+        return client.newCall(searchMangaRequest(page, query, filters))
+            .asObservableIgnoreCode(404)
+            .map(::searchMangaParse)
+    }
+
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val filterList = if (filters.isEmpty()) getFilterList() else filters
         val tagsFilter = filterList.find { it is TagsFilter } as TagsFilter
@@ -61,11 +73,11 @@ class Nana : ParsedHttpSource() {
         "#thumbs_container > .id1"
 
     override fun searchMangaFromElement(element: Element): SManga = SManga.create().apply {
-        val a = element.selectFirst(".id3 > a")
+        val a = element.selectFirst(".id3 > a")!!
         setUrlWithoutDomain(a.absUrl("href"))
         title = a.attr("title")
 
-        val img = a.selectFirst("> img")
+        val img = a.selectFirst("> img")!!
         thumbnail_url = img.absUrl("src")
         author = img.attr("alt")
             .replace("$title by ", "")
@@ -75,10 +87,11 @@ class Nana : ParsedHttpSource() {
             .joinToString { it.text() }
 
         status = SManga.COMPLETED
+        update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
         initialized = true
     }
 
-    override fun searchMangaNextPageSelector(): String? =
+    override fun searchMangaNextPageSelector(): String =
         "a.paginate_button.current + a.paginate_button"
 
     // Latest
@@ -91,7 +104,7 @@ class Nana : ParsedHttpSource() {
     override fun latestUpdatesFromElement(element: Element): SManga =
         throw UnsupportedOperationException("Not used.")
 
-    override fun latestUpdatesNextPageSelector(): String? =
+    override fun latestUpdatesNextPageSelector(): String =
         throw UnsupportedOperationException("Not used.")
 
     // Details
@@ -110,8 +123,8 @@ class Nana : ParsedHttpSource() {
                     name = "Chapter"
                     date_upload = 0L
                     chapter_number = 1F
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -179,6 +192,15 @@ class Nana : ParsedHttpSource() {
     }
 
     // Other
+    private fun Call.asObservableIgnoreCode(code: Int): Observable<Response> {
+        return asObservable().doOnNext { response ->
+            if (!response.isSuccessful && response.code != code) {
+                response.close()
+                throw Exception("HTTP error ${response.code}")
+            }
+        }
+    }
+
     companion object {
         private val PATTERN_PAGES = Regex("Reader\\.pages\\s*=\\s*\\{\\\"pages\\\":\\[([^];\\n]+)]\\}\\.pages;")
     }

@@ -68,8 +68,8 @@ abstract class NoiseManga(override val lang: String) : ParsedHttpSource() {
     override fun mangaDetailsRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val mainContent = document.select("div.main-content-page").first()
-        val entryContent = mainContent.select("div.entry-content").first()
+        val mainContent = document.select("div.main-content-page").first()!!
+        val entryContent = mainContent.select("div.entry-content").first()!!
         val descriptionSelector = if (lang == "en") "h4 + h4, h4 + div h4" else "h1 + h4"
         val mangaSlug = document.location().replace(baseUrl, "")
 
@@ -146,7 +146,7 @@ abstract class NoiseManga(override val lang: String) : ParsedHttpSource() {
                 artist = "Max Andrade"
                 author = "Max Andrade"
                 thumbnail_url = "/wp-content/uploads/2019/11/TC_001_NOISE_0000-1.jpg"
-            }
+            },
         )
     }
 }

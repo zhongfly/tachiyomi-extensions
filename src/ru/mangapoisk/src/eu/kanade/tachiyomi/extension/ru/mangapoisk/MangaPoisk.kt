@@ -63,6 +63,7 @@ class MangaPoisk : ParsedHttpSource() {
                             url.addQueryParameter("genres[]", genre.id)
                         }
                     }
+                    else -> {}
                 }
             }
             return GET(url.toString(), headers)
@@ -88,13 +89,11 @@ class MangaPoisk : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga {
         return SManga.create().apply {
-            thumbnail_url = getImage(element.select("a > img").first())
+            thumbnail_url = getImage(element.select("a > img").first()!!)
 
-            element.select("a.card-about").first().let {
-                setUrlWithoutDomain(it.attr("href"))
-            }
+            setUrlWithoutDomain(element.select("a.card-about").first()!!.attr("href"))
 
-            element.select("a > h2.entry-title").first().let {
+            element.select("a > h2.entry-title").first()!!.let {
                 title = it.text().split("/").first()
             }
         }
@@ -112,7 +111,7 @@ class MangaPoisk : ParsedHttpSource() {
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("article div.card-body").first()
+        val infoElement = document.select("article div.card-body").first()!!
         val manga = SManga.create()
         val entitle = infoElement.select(".post-name-en")
         manga.title = if (entitle.isNullOrEmpty()) { infoElement.select(".post-name").text() } else entitle.text().replaceRange(0, 2, "")
@@ -120,8 +119,10 @@ class MangaPoisk : ParsedHttpSource() {
         manga.description = infoElement.select(".post-info > div .manga-description.entry").text()
         manga.status = if (document.select(".order-2 h3").text() == "Главы удалены по требованию правообладателя.") {
             SManga.LICENSED
-        } else parseStatus(infoElement.select(".post-info > span:eq(7)").text())
-        manga.thumbnail_url = infoElement.select("img.img-fluid").first().attr("src")
+        } else {
+            parseStatus(infoElement.select(".post-info > span:eq(7)").text())
+        }
+        manga.thumbnail_url = infoElement.select("img.img-fluid").first()!!.attr("src")
         return manga
     }
 
@@ -143,7 +144,7 @@ class MangaPoisk : ParsedHttpSource() {
         return Observable.just(
             pages.flatMap { page ->
                 chapterListParse(client.newCall(chapterPageListRequest(manga, page)).execute(), manga)
-            }
+            },
         )
     }
     private fun chapterListParse(response: Response, manga: SManga): List<SChapter> {
@@ -161,8 +162,8 @@ class MangaPoisk : ParsedHttpSource() {
     override fun chapterListSelector() = ".chapter-item"
 
     private fun chapterFromElement(element: Element, manga: SManga): SChapter {
-        val title = element.select("span.chapter-title").first().text()
-        val urlElement = element.select("a").first()
+        val title = element.select("span.chapter-title").first()!!.text()
+        val urlElement = element.select("a").first()!!
         val urlText = urlElement.text()
 
         val chapter = SChapter.create()
@@ -197,13 +198,13 @@ class MangaPoisk : ParsedHttpSource() {
     override fun getFilterList() = FilterList(
         OrderBy(),
         StatusList(getStatusList()),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private class OrderBy : Filter.Sort(
         "Сортировка",
         arrayOf("Год", "Популярности", "Алфавиту", "Дате добавления", "Дате обновления"),
-        Selection(1, false)
+        Selection(1, false),
     )
 
     private fun getStatusList() = listOf(
@@ -254,7 +255,7 @@ class MangaPoisk : ParsedHttpSource() {
         CheckFilter("юри", "3197"),
         CheckFilter("арт", "7332"),
         CheckFilter("омегаверс", "7514"),
-        CheckFilter("бара", "8119")
+        CheckFilter("бара", "8119"),
     )
 
     override fun imageUrlParse(document: Document) = throw Exception("Not Used")

@@ -22,7 +22,7 @@ abstract class WPComics(
     override val baseUrl: String,
     override val lang: String,
     private val dateFormat: SimpleDateFormat = SimpleDateFormat("HH:mm - dd/MM/yyyy Z", Locale.US),
-    private val gmtOffset: String? = "+0500"
+    private val gmtOffset: String? = "+0500",
 ) : ParsedHttpSource() {
 
     override val supportsLatest = true
@@ -51,7 +51,7 @@ abstract class WPComics(
                 title = it.text()
                 setUrlWithoutDomain(it.attr("abs:href"))
             }
-            thumbnail_url = imageOrNull(element.select("div.image:first-of-type img").first())
+            thumbnail_url = imageOrNull(element.select("div.image:first-of-type img").first()!!)
         }
     }
 
@@ -84,6 +84,7 @@ abstract class WPComics(
                 when (filter) {
                     is GenreFilter -> filter.toUriPart()?.let { url.addPathSegment(it) }
                     is StatusFilter -> filter.toUriPart()?.let { url.addQueryParameter("status", it) }
+                    else -> {}
                 }
             }
 
@@ -105,7 +106,7 @@ abstract class WPComics(
                 title = it.text()
                 setUrlWithoutDomain(it.attr("abs:href"))
             }
-            thumbnail_url = imageOrNull(element.select("div.image a img").first())
+            thumbnail_url = imageOrNull(element.select("div.image a img").first()!!)
         }
     }
 
@@ -120,7 +121,7 @@ abstract class WPComics(
                 status = info.select("li.status p.col-xs-8").text().toStatus()
                 genre = info.select("li.kind p.col-xs-8 a").joinToString { it.text() }
                 description = info.select("div.detail-content p").text()
-                thumbnail_url = imageOrNull(info.select("div.col-image img").first())
+                thumbnail_url = imageOrNull(info.select("div.col-image img").first()!!)
             }
         }
     }
@@ -230,7 +231,7 @@ abstract class WPComics(
         Pair(null, "Tất cả"),
         Pair("1", "Đang tiến hành"),
         Pair("2", "Đã hoàn thành"),
-        Pair("3", "Tạm ngừng")
+        Pair("3", "Tạm ngừng"),
     )
     protected open fun getGenreList(): Array<Pair<String?, String>> = arrayOf(
         null to "Tất cả",
@@ -284,7 +285,7 @@ abstract class WPComics(
         "truyen-scan" to "Truyện scan",
         "truyen-mau" to "Truyện Màu",
         "webtoon" to "Webtoon",
-        "xuyen-khong" to "Xuyên Không"
+        "xuyen-khong" to "Xuyên Không",
     )
 
     protected open class UriPartFilter(displayName: String, val vals: Array<Pair<String?, String>>) :

@@ -34,7 +34,7 @@ import java.util.regex.Pattern
 abstract class GroupLe(
     override val name: String,
     override val baseUrl: String,
-    final override val lang: String
+    final override val lang: String,
 ) : ConfigurableSource, ParsedHttpSource() {
 
     private val preferences: SharedPreferences by lazy {
@@ -48,8 +48,9 @@ abstract class GroupLe(
         .addNetworkInterceptor { chain ->
             val originalRequest = chain.request()
             val response = chain.proceed(originalRequest)
-            if (originalRequest.url.toString().contains(baseUrl) and (originalRequest.url.toString().contains("internal/redirect") or (response.code == 301)))
+            if (originalRequest.url.toString().contains(baseUrl) and (originalRequest.url.toString().contains("internal/redirect") or (response.code == 301))) {
                 throw IOException("Ссылка на мангу была изменена. Перемегрируйте мангу на тотже (или смежный с GroupLe) источник или передабавте из Поисковика/Каталога.")
+            }
             response
         }
         .build()
@@ -73,7 +74,7 @@ abstract class GroupLe(
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
         manga.thumbnail_url = element.select("img.lazy").first()?.attr("data-original")?.replace("_p.", ".")
-        element.select("h3 > a").first().let {
+        element.select("h3 > a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.attr("title")
         }
@@ -94,7 +95,7 @@ abstract class GroupLe(
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/search/advanced?offset=${50 * (page - 1)}".toHttpUrlOrNull()!!.newBuilder()
+        val url = "$baseUrl/search/advancedResults?offset=${50 * (page - 1)}".toHttpUrlOrNull()!!.newBuilder()
         if (query.isNotEmpty()) {
             url.addQueryParameter("q", query)
         }
@@ -102,11 +103,9 @@ abstract class GroupLe(
     }
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select(".expandable").first()
+        val infoElement = document.select(".expandable").first()!!
         val rawCategory = infoElement.select("span.elem_category").text()
-        val category = if (rawCategory.isNotEmpty()) {
-            rawCategory
-        } else {
+        val category = rawCategory.ifEmpty {
             "манга"
         }
 
@@ -186,8 +185,8 @@ abstract class GroupLe(
     override fun chapterListSelector() = "div.chapters-link > table > tbody > tr:has(td > a):has(td.date:not(.text-info))"
 
     private fun chapterFromElement(element: Element, manga: SManga): SChapter {
-        val urlElement = element.select("a.chapter-link").first()
-        val chapterInf = element.select("td.item-title").first()
+        val urlElement = element.select("a.chapter-link").first()!!
+        val chapterInf = element.select("td.item-title").first()!!
         val urlText = urlElement.text()
 
         val chapter = SChapter.create()
@@ -236,21 +235,27 @@ abstract class GroupLe(
         val single = Regex("""\s*Сингл\s*""")
         when {
             extra.containsMatchIn(chapter.name) -> {
-                if (chapter.name.substringAfter("Экстра").trim().isEmpty())
+                if (chapter.name.substringAfter("Экстра").trim().isEmpty()) {
                     chapter.name = chapter.name.replaceFirst(" ", " - " + DecimalFormat("#,###.##").format(chapter.chapter_number).replace(",", ".") + " ")
+                }
             }
 
             single.containsMatchIn(chapter.name) -> {
-                if (chapter.name.substringAfter("Сингл").trim().isEmpty())
+                if (chapter.name.substringAfter("Сингл").trim().isEmpty()) {
                     chapter.name = DecimalFormat("#,###.##").format(chapter.chapter_number).replace(",", ".") + " " + chapter.name
+                }
             }
         }
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val html = response.body!!.string()
+        val html = response.body.string()
 
-        val readerMark = "rm_h.initReader( ["
+        var readerMark = "rm_h.initReader( ["
+
+        if (!html.contains(readerMark)) {
+            readerMark = "rm_h.readerInit( 0,["
+        }
 
         if (!html.contains(readerMark)) {
             throw Exception("Для просмотра 18+ контента необходима авторизация через WebView")
@@ -277,8 +282,13 @@ abstract class GroupLe(
                     urlParts[1] + urlParts[0] + urlParts[2]
                 }
             }
-            if (!url.contains("://"))
+            if (!url.contains("://")) {
                 url = "https:$url"
+            }
+            if (url.contains("one-way.work")) {
+                // domain that does not need a token
+                url = url.substringBefore("?")
+            }
             pages.add(Page(i++, "", url.replace("//resh", "//h")))
         }
         return pages

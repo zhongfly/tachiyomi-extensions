@@ -27,7 +27,7 @@ class DynastyChapters : DynastyScans() {
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create()
 
-        manga.thumbnail_url = document.select("img").last().absUrl("src")
+        manga.thumbnail_url = document.select("img").last()!!.absUrl("src")
         manga.title = document.select("h3 b").text()
         manga.status = SManga.COMPLETED
         val artistAuthorElements = document.select("a[href*=author]")
@@ -41,6 +41,8 @@ class DynastyChapters : DynastyScans() {
         }
 
         val genreElements = document.select(".tags a")
+        val doujinElements = document.select("a[href*=doujins]")
+        genreElements.addAll(doujinElements)
         parseGenres(genreElements, manga)
 
         return manga

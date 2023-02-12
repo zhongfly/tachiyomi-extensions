@@ -62,13 +62,12 @@ class MangaPill : ParsedHttpSource() {
         manga.genre = genres.joinToString(", ")
         manga.status = parseStatus(document.select("div.container > div:first-child > div:last-child > div:nth-child(3) > div:nth-child(2) > div").text())
         manga.description = document.select("div.container > div:first-child > div:last-child > div:nth-child(2) > p").text()
-        manga.thumbnail_url = document.select("div.container > div:first-child > div:first-child > img").first().attr("data-src")
+        manga.thumbnail_url = document.select("div.container > div:first-child > div:first-child > img").first()!!.attr("data-src")
 
         return manga
     }
 
     private fun parseStatus(element: String): Int = when {
-
         element.lowercase(Locale.ENGLISH).contains("publishing") -> SManga.ONGOING
         element.lowercase(Locale.ENGLISH).contains("finished") -> SManga.COMPLETED
         else -> SManga.UNKNOWN
@@ -95,7 +94,6 @@ class MangaPill : ParsedHttpSource() {
 
     override fun imageUrlParse(document: Document) = ""
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-
         val url = "$baseUrl/search".toHttpUrlOrNull()!!.newBuilder()
             .addQueryParameter("page", page.toString())
             .addQueryParameter("q", query)
@@ -103,7 +101,6 @@ class MangaPill : ParsedHttpSource() {
         filters.forEach { filter ->
             when (filter) {
                 is GenreList -> {
-
                     val genreInclude = mutableListOf<String>()
                     filter.state.forEach {
                         if (it.state == 1) {
@@ -118,6 +115,7 @@ class MangaPill : ParsedHttpSource() {
                 }
                 is Status -> url.addQueryParameter("status", filter.toUriPart())
                 is Type -> url.addQueryParameter("type", filter.toUriPart())
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -133,8 +131,8 @@ class MangaPill : ParsedHttpSource() {
             Pair("Doujinshi", "doujinshi"),
             Pair("Manhwa", "manhwa"),
             Pair("Manhua", "manhua"),
-            Pair("Oel", "oel")
-        )
+            Pair("Oel", "oel"),
+        ),
     )
 
     private class Genre(name: String, val id: String = name) : Filter.TriState(name)
@@ -147,8 +145,8 @@ class MangaPill : ParsedHttpSource() {
             Pair("Finished", "finished"),
             Pair("On Hiatus", "on hiatus"),
             Pair("Discontinued", "discontinued"),
-            Pair("Not yet Published", "not yet published")
-        )
+            Pair("Not yet Published", "not yet published"),
+        ),
     )
 
     override fun getFilterList() = FilterList(
@@ -156,7 +154,7 @@ class MangaPill : ParsedHttpSource() {
         Filter.Separator(),
         Status(),
         Type(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     private fun getGenreList() = listOf(
@@ -202,7 +200,7 @@ class MangaPill : ParsedHttpSource() {
         Genre("Thriller"),
         Genre("Vampire"),
         Genre("Yaoi"),
-        Genre("Yuri")
+        Genre("Yuri"),
     )
 
     private open class UriPartFilter(displayName: String, val vals: Array<Pair<String, String>>) :

@@ -42,19 +42,11 @@ class YuriNeko : HttpSource() {
 
     override val client = network.cloudflareClient.newBuilder()
         .rateLimit(3, 1, TimeUnit.SECONDS)
-        .addInterceptor { authIntercept(it) }
-        .addInterceptor { chain ->
-            val response = chain.proceed(chain.request())
+        .addInterceptor(::authIntercept)
+        .addInterceptor(::errorIntercept)
+        .build()
 
-            if (response.code >= 400 && response.body != null) {
-                val error = response.parseAs<ErrorResponseDto>()
-                response.close()
-                throw IOException("${error.message}\nĐăng nhập qua WebView và thử lại.")
-            }
-            response
-        }.build()
-
-    override fun headersBuilder() = Headers.Builder().add("Referer", baseUrl)
+    override fun headersBuilder() = Headers.Builder().add("Referer", "$baseUrl/")
 
     private fun authIntercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -70,13 +62,27 @@ class YuriNeko : HttpSource() {
         }.build()
         return chain.proceed(authRequest)
     }
+    private fun errorIntercept(chain: Interceptor.Chain): Response {
+        val response = chain.proceed(chain.request())
+
+        if (response.code >= 400) {
+            val error = try {
+                response.parseAs<ErrorResponseDto>()
+            } catch (_: Throwable) {
+                return response
+            }
+            response.close()
+            throw IOException("${error.message}\nĐăng nhập qua WebView và thử lại.")
+        }
+        return response
+    }
 
     override fun popularMangaRequest(page: Int): Request = GET(
         url = apiUrl.toHttpUrl().newBuilder().apply {
             addPathSegment("lastest2")
             addQueryParameter("page", page.toString())
         }.build().toString(),
-        cache = CacheControl.FORCE_NETWORK
+        cache = CacheControl.FORCE_NETWORK,
     )
 
     override fun popularMangaParse(response: Response): MangasPage {
@@ -99,7 +105,7 @@ class YuriNeko : HttpSource() {
                 fetchMangaDetails(
                     SManga.create().apply {
                         url = "/manga/$id"
-                    }
+                    },
                 )
                     .map { MangasPage(listOf(it), false) }
             }
@@ -126,7 +132,7 @@ class YuriNeko : HttpSource() {
                         addQueryParameter("type", searchType)
                         addQueryParameter("id", actualQuery)
                         addQueryParameter("page", page.toString())
-                    }.build().toString()
+                    }.build().toString(),
                 )
             }
             query.isNotEmpty() -> {
@@ -135,7 +141,7 @@ class YuriNeko : HttpSource() {
                         addPathSegment("search")
                         addQueryParameter("query", query)
                         addQueryParameter("page", page.toString())
-                    }.build().toString()
+                    }.build().toString(),
                 )
             }
             else -> {
@@ -149,12 +155,12 @@ class YuriNeko : HttpSource() {
                                         addQueryParameter("type", "tag")
                                         addQueryParameter("id", filter.toUriPart())
                                         addQueryParameter("page", page.toString())
-                                    }.build().toString()
+                                    }.build().toString(),
                                 )
                                 else -> continue
                             }
                         }
-                        else -> continue
+                        else -> {}
                     }
                 }
                 return popularMangaRequest(page)
@@ -197,7 +203,7 @@ class YuriNeko : HttpSource() {
     override fun getFilterList() = FilterList(
         Filter.Header("Lưu ý rằng không thể vừa tìm kiếm vừa lọc bằng tag."),
         Filter.Header("Tìm kiếm sẽ được ưu tiên."),
-        UriPartFilter("Tag", getGenreList())
+        UriPartFilter("Tag", getGenreList()),
     )
 
     private fun getGenreList() = arrayOf(
@@ -388,7 +394,7 @@ class YuriNeko : HttpSource() {
     }
 
     private inline fun <reified T> Response.parseAs(): T = use {
-        json.decodeFromString(body?.string().orEmpty())
+        json.decodeFromString(body.string())
     }
 
     companion object {

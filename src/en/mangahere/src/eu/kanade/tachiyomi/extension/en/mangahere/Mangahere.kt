@@ -50,11 +50,11 @@ class Mangahere : ParsedHttpSource() {
                                 .path("/")
                                 .name("isAdult")
                                 .value("1")
-                                .build()
+                                .build(),
                         )
                     }
                 }
-            }
+            },
         )
         .build()
 
@@ -73,11 +73,11 @@ class Mangahere : ParsedHttpSource() {
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
 
-        val titleElement = element.select("a").first()
+        val titleElement = element.select("a").first()!!
         manga.title = titleElement.attr("title")
         manga.setUrlWithoutDomain(titleElement.attr("href"))
         manga.thumbnail_url = element.select("img.manga-list-1-cover")
-            ?.first()?.attr("src")
+            .first()?.attr("src")
 
         return manga
     }
@@ -125,6 +125,7 @@ class Mangahere : ParsedHttpSource() {
                     url.addEncodedQueryParameter("released_method", "eq")
                     url.addEncodedQueryParameter("released", filter.state)
                 }
+                else -> {}
             }
         }
 
@@ -153,13 +154,13 @@ class Mangahere : ParsedHttpSource() {
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create()
-        manga.author = document.select(".detail-info-right-say > a")?.first()?.text()
-        manga.genre = document.select(".detail-info-right-tag-list > a")?.joinToString { it.text() }
-        manga.description = document.select(".fullcontent")?.first()?.text()
-        manga.thumbnail_url = document.select("img.detail-info-cover-img")?.first()
+        manga.author = document.select(".detail-info-right-say > a").first()?.text()
+        manga.genre = document.select(".detail-info-right-tag-list > a").joinToString { it.text() }
+        manga.description = document.select(".fullcontent").first()?.text()
+        manga.thumbnail_url = document.select("img.detail-info-cover-img").first()
             ?.attr("src")
 
-        document.select("span.detail-info-right-title-tip")?.first()?.text()?.also { statusText ->
+        document.select("span.detail-info-right-title-tip").first()?.text()?.also { statusText ->
             when {
                 statusText.contains("ongoing", true) -> manga.status = SManga.ONGOING
                 statusText.contains("completed", true) -> manga.status = SManga.COMPLETED
@@ -168,7 +169,7 @@ class Mangahere : ParsedHttpSource() {
         }
 
         // Get a chapter, check if the manga is licensed.
-        val aChapterURL = chapterFromElement(document.select(chapterListSelector()).first()).url
+        val aChapterURL = chapterFromElement(document.select(chapterListSelector()).first()!!).url
         val aChapterDocument = client.newCall(GET("$baseUrl$aChapterURL", headers)).execute().asJsoup()
         if (aChapterDocument.select("p.detail-block-content").hasText()) manga.status = SManga.LICENSED
 
@@ -179,8 +180,8 @@ class Mangahere : ParsedHttpSource() {
 
     override fun chapterFromElement(element: Element): SChapter {
         val chapter = SChapter.create()
-        chapter.setUrlWithoutDomain(element.select("a").first().attr("href"))
-        chapter.name = element.select("a p.title3").first().text()
+        chapter.setUrlWithoutDomain(element.select("a").first()!!.attr("href"))
+        chapter.name = element.select("a p.title3").first()!!.text()
         chapter.date_upload = element.select("a p.title2").first()?.text()?.let { parseChapterDate(it) } ?: 0
         return chapter
     }
@@ -217,7 +218,7 @@ class Mangahere : ParsedHttpSource() {
         /*
             function to drop last imageUrl if it's broken/unneccesary, working imageUrls are incremental (e.g. t001, t002, etc); if the difference between
             the last two isn't 1 or doesn't have an Int at the end of the last imageUrl's filename, drop last Page
-        */
+         */
         fun List<Page>.dropLastIfBroken(): List<Page> {
             val list = this.takeLast(2).map { page ->
                 try {
@@ -250,10 +251,10 @@ class Mangahere : ParsedHttpSource() {
             val chapterIdStartLoc = html.indexOf("chapterid")
             val chapterId = html.substring(
                 chapterIdStartLoc + 11,
-                html.indexOf(";", chapterIdStartLoc)
+                html.indexOf(";", chapterIdStartLoc),
             ).trim()
 
-            val chapterPagesElement = document.select(".pager-list-left > span").first()
+            val chapterPagesElement = document.select(".pager-list-left > span").first()!!
             val pagesLinksElements = chapterPagesElement.select("a")
             val pagesNumber = pagesLinksElements[pagesLinksElements.size - 2].attr("data-page").toInt()
 
@@ -277,12 +278,13 @@ class Mangahere : ParsedHttpSource() {
                         .build()
 
                     val response = client.newCall(request).execute()
-                    responseText = response.body!!.string()
+                    responseText = response.body.string()
 
-                    if (responseText.isNotEmpty())
+                    if (responseText.isNotEmpty()) {
                         break
-                    else
+                    } else {
                         secretKey = ""
+                    }
                 }
 
                 val deobfuscatedScript = quickJs.evaluate(responseText.removePrefix("eval")).toString()
@@ -314,7 +316,7 @@ class Mangahere : ParsedHttpSource() {
 
         val secretKeyResultScript = secretKeyDeobfuscatedScript.substring(
             secretKeyStartLoc,
-            secretKeyEndLoc
+            secretKeyEndLoc,
         )
 
         return quickJs.evaluate(secretKeyResultScript).toString()
@@ -340,7 +342,7 @@ class Mangahere : ParsedHttpSource() {
         GenreList(genres()),
         RatingList(ratings),
         YearFilter("Year released"),
-        CompletionList(completions)
+        CompletionList(completions),
     )
 
     private val types = hashMapOf(
@@ -351,7 +353,7 @@ class Mangahere : ParsedHttpSource() {
         "American Manga" to 5,
         "Hong Kong Manga" to 6,
         "Other Manga" to 7,
-        "Any" to 0
+        "Any" to 0,
     )
 
     private val completions = arrayOf("Either", "No", "Yes")
@@ -394,6 +396,6 @@ class Mangahere : ParsedHttpSource() {
         Genre("Mecha", 34),
         Genre("Shotacon", 35),
         Genre("Lolicon", 36),
-        Genre("Webtoons", 37)
+        Genre("Webtoons", 37),
     )
 }

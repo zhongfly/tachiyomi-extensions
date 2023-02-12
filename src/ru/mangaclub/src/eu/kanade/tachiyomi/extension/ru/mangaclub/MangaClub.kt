@@ -80,6 +80,7 @@ class MangaClub : ParsedHttpSource() {
                         val orderID = arrayOf("date", "editdate", "title", "comm_num", "news_read", "rating")[filter.state!!.index]
                         url += "/sort=$orderID/order=$orderState"
                     }
+                    else -> {}
                 }
             }
             url += "/page/$page"
@@ -135,26 +136,26 @@ class MangaClub : ParsedHttpSource() {
     private class Category(name: String, val id: String) : Filter.CheckBox(name)
     private class Status : Filter.Select<String>(
         "Статус",
-        arrayOf("Не выбрано", "Завершен", "Продолжается", "Заморожено/Заброшено")
+        arrayOf("Не выбрано", "Завершен", "Продолжается", "Заморожено/Заброшено"),
     )
     private class OrderBy : Filter.Sort(
         "Сортировка",
         arrayOf("По дате добавления", "По дате обновления", "В алфавитном порядке", "По количеству комментариев", "По количеству просмотров", "По рейтингу"),
-        Selection(5, false)
+        Selection(5, false),
     )
 
     override fun getFilterList() = FilterList(
         GenreList(getGenreList()),
         Status(),
         CategoryList(getCategoryList()),
-        OrderBy()
+        OrderBy(),
     )
 
     private fun getCategoryList() = listOf(
         Category("Манга", "1"),
         Category("Манхва", "2"),
         Category("Маньхуа", "3"),
-        Category("Веб-манхва", "6")
+        Category("Веб-манхва", "6"),
     )
 
     private fun getGenreList() = listOf(
@@ -204,6 +205,6 @@ class MangaClub : ParsedHttpSource() {
         Genre("Ёнкома", "ёнкома"),
         Genre("Этти", "этти"),
         Genre("Юри", "юри"),
-        Genre("Яой", "яой")
+        Genre("Яой", "яой"),
     )
 }

@@ -8,7 +8,7 @@ import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class YaoiLib : LibGroup("YaoiLib", "https://yaoilib.me", "ru") {
+class YaoiLib : LibGroup("YaoiLib", "https://v1.yaoilib.net", "ru") {
 
     override val client: OkHttpClient = super.client.newBuilder()
         .addInterceptor(::imageContentTypeIntercept)
@@ -27,7 +27,7 @@ class YaoiLib : LibGroup("YaoiLib", "https://yaoilib.me", "ru") {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         if (csrfToken.isEmpty()) {
             val tokenResponse = client.newCall(popularMangaRequest(page)).execute()
-            val resBody = tokenResponse.body!!.string()
+            val resBody = tokenResponse.body.string()
             csrfToken = "_token\" content=\"(.*)\"".toRegex().find(resBody)!!.groups[1]!!.value
         }
         val url = super.searchMangaRequest(page, query, filters).url.newBuilder()
@@ -37,7 +37,7 @@ class YaoiLib : LibGroup("YaoiLib", "https://yaoilib.me", "ru") {
                     if (age.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(
                             if (age.isIncluded()) "caution[include][]" else "caution[exclude][]",
-                            age.id
+                            age.id,
                         )
                     }
                 }
@@ -45,10 +45,11 @@ class YaoiLib : LibGroup("YaoiLib", "https://yaoilib.me", "ru") {
                     if (tag.state != Filter.TriState.STATE_IGNORE) {
                         url.addQueryParameter(
                             if (tag.isIncluded()) "tags[include][]" else "tags[exclude][]",
-                            tag.id
+                            tag.id,
                         )
                     }
                 }
+                else -> {}
             }
         }
         return POST(url.toString(), catalogHeaders())
@@ -164,14 +165,14 @@ class YaoiLib : LibGroup("YaoiLib", "https://yaoilib.me", "ru") {
         SearchFilter("Шантаж", "279"),
         SearchFilter("Эльфы", "216"),
         SearchFilter("Якудза", "164"),
-        SearchFilter("Япония", "280")
+        SearchFilter("Япония", "280"),
 
     )
 
     private fun getAgeList() = listOf(
         SearchFilter("Отсутствует", "0"),
         SearchFilter("16+", "1"),
-        SearchFilter("18+", "2")
+        SearchFilter("18+", "2"),
     )
 
     companion object {

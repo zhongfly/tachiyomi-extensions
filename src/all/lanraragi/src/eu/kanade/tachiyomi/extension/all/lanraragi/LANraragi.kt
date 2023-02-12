@@ -35,6 +35,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.IOException
 import java.security.MessageDigest
+import kotlin.math.max
 
 open class LANraragi(private val suffix: String = "") : ConfigurableSource, UnmeteredSource, HttpSource() {
     override val baseUrl by lazy { getPrefBaseUrl() }
@@ -75,7 +76,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
     }
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val archive = json.decodeFromString<Archive>(response.body!!.string())
+        val archive = json.decodeFromString<Archive>(response.body.string())
 
         return archiveToSManga(archive)
     }
@@ -88,11 +89,11 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val archive = json.decodeFromString<Archive>(response.body!!.string())
+        val archive = json.decodeFromString<Archive>(response.body.string())
         val uri = getApiUriBuilder("/api/archives/${archive.arcid}/files")
+        val prefClearNew = preferences.getBoolean(NEW_ONLY_KEY, NEW_ONLY_DEFAULT)
 
-        // Replicate old behavior and unset "isnew" for the archive.
-        if (archive.isnew == "true") {
+        if (archive.isnew == "true" && prefClearNew) {
             val clearNew = Request.Builder()
                 .url("$baseUrl/api/archives/${archive.arcid}/isnew")
                 .headers(headers)
@@ -113,7 +114,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
                 getDateAdded(archive.tags).toLongOrNull()?.let {
                     date_upload = it
                 }
-            }
+            },
         )
     }
 
@@ -122,7 +123,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
     }
 
     override fun pageListParse(response: Response): List<Page> {
-        val archivePage = json.decodeFromString<ArchivePage>(response.body!!.string())
+        val archivePage = json.decodeFromString<ArchivePage>(response.body.string())
 
         return archivePage.pages.mapIndexed { index, url ->
             val uri = Uri.parse("${baseUrl}${url.trimStart('.')}")
@@ -142,7 +143,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
 
     override fun latestUpdatesRequest(page: Int): Request {
         val filters = mutableListOf<Filter<*>>()
-        val prefNewOnly = preferences.getBoolean(NEW_ONLY_KEY, false)
+        val prefNewOnly = preferences.getBoolean(NEW_ONLY_KEY, NEW_ONLY_DEFAULT)
 
         if (prefNewOnly) filters.add(NewArchivesOnly(true))
 
@@ -182,7 +183,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
                 is DescendingOrder -> if (filter.state) uri.appendQueryParameter("order", "desc")
                 is SortByNamespace -> if (filter.state.isNotEmpty()) uri.appendQueryParameter("sortby", filter.state.trim())
                 is CategorySelect -> if (filter.state > 0) uri.appendQueryParameter("category", filter.toUriPart())
-                else -> Unit
+                else -> {}
             }
         }
 
@@ -196,12 +197,12 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
     }
 
     override fun searchMangaParse(response: Response): MangasPage {
-        val jsonResult = json.decodeFromString<ArchiveSearchResult>(response.body!!.string())
+        val jsonResult = json.decodeFromString<ArchiveSearchResult>(response.body.string())
         val currentStart = getStart(response)
         val archives = arrayListOf<SManga>()
 
         lastResultCount = jsonResult.data.size
-        maxResultCount = if (lastResultCount >= maxResultCount) lastResultCount else maxResultCount
+        maxResultCount = max(lastResultCount, maxResultCount)
         lastRecordsFiltered = jsonResult.recordsFiltered
         totalRecords = jsonResult.recordsTotal
 
@@ -215,7 +216,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
                     title = "Random"
                     description = "Refresh for a random archive."
                     thumbnail_url = getThumbnailUri("tachiyomi") // noThumb
-                }
+                },
             )
         }
 
@@ -223,7 +224,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
             archives.add(archiveToSManga(it))
         }
 
-        return MangasPage(archives, currentStart + jsonResult.data.size < jsonResult.recordsFiltered)
+        return MangasPage(archives, currentStart + lastResultCount < lastRecordsFiltered)
     }
 
     private fun archiveToSManga(archive: Archive) = SManga.create().apply {
@@ -258,7 +259,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
         NewArchivesOnly(),
         UntaggedArchivesOnly(),
         StartingPage(startingPageStats()),
-        SortByNamespace()
+        SortByNamespace(),
     )
 
     private var categories = emptyList<Category>()
@@ -281,21 +282,25 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
     private fun getPrefCustomLabel(): String = preferences.getString(CUSTOM_LABEL_KEY, suffix)!!.ifBlank { suffix }
 
     override fun setupPreferenceScreen(screen: androidx.preference.PreferenceScreen) {
-        val latestNewOnlyPref = androidx.preference.CheckBoxPreference(screen.context).apply {
-            key = NEW_ONLY_KEY
-            title = "Latest - New Only"
-            setDefaultValue(true)
+        screen.addPreference(screen.editTextPreference(HOSTNAME_KEY, "Hostname", HOSTNAME_DEFAULT, baseUrl, refreshSummary = true))
+        screen.addPreference(screen.editTextPreference(APIKEY_KEY, "API Key", "", "Required if No-Fun Mode is enabled.", true))
+        screen.addPreference(screen.editTextPreference(CUSTOM_LABEL_KEY, "Custom Label", "", "Show the given label for the source instead of the default."))
+        screen.addPreference(screen.checkBoxPreference(CLEAR_NEW_KEY, "Clear New status", CLEAR_NEW_DEFAULT, "Clear an entry's New status when its details are viewed."))
+        screen.addPreference(screen.checkBoxPreference(NEW_ONLY_KEY, "Latest - New Only", NEW_ONLY_DEFAULT))
+        screen.addPreference(screen.editTextPreference(SORT_BY_NS_KEY, "Latest - Sort by Namespace", SORT_BY_NS_DEFAULT, "Sort by the given namespace for Latest, such as date_added."))
+    }
+
+    private fun androidx.preference.PreferenceScreen.checkBoxPreference(key: String, title: String, default: Boolean, summary: String = ""): androidx.preference.CheckBoxPreference {
+        return androidx.preference.CheckBoxPreference(context).apply {
+            this.key = key
+            this.title = title
+            this.summary = summary
+            setDefaultValue(default)
 
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit().putBoolean(this.key, newValue as Boolean).commit()
             }
         }
-
-        screen.addPreference(screen.editTextPreference(HOSTNAME_KEY, "Hostname", HOSTNAME_DEFAULT, baseUrl, refreshSummary = true))
-        screen.addPreference(screen.editTextPreference(APIKEY_KEY, "API Key", "", "Required if No-Fun Mode is enabled.", true))
-        screen.addPreference(screen.editTextPreference(CUSTOM_LABEL_KEY, "Custom Label", "", "Show the given label for the source instead of the default."))
-        screen.addPreference(latestNewOnlyPref)
-        screen.addPreference(screen.editTextPreference(SORT_BY_NS_KEY, "Latest - Sort by Namespace", SORT_BY_NS_DEFAULT, "Sort by the given namespace for Latest, such as date_added."))
     }
 
     private fun androidx.preference.PreferenceScreen.editTextPreference(key: String, title: String, default: String, summary: String, isPassword: Boolean = false, refreshSummary: Boolean = false): androidx.preference.EditTextPreference {
@@ -334,10 +339,12 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
 
     // Helper
     private fun getRandomID(query: String): String {
-        val searchRandom = client.newCall(GET("$baseUrl/api/search/random?$query", headers)).execute()
-        val data = json.parseToJsonElement(searchRandom.body!!.string()).jsonObject["data"]
+        val searchRandom = client.newCall(GET("$baseUrl/api/search/random?count=1&$query", headers)).execute()
+        val data = json.parseToJsonElement(searchRandom.body.string()).jsonObject["data"]
+        val archive = data!!.jsonArray.firstOrNull()?.jsonObject
 
-        return data!!.jsonArray.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.content ?: ""
+        // 0.8.2~0.8.7 = id, 0.8.8+ = arcid
+        return (archive?.get("arcid") ?: archive?.get("id"))?.jsonPrimitive?.content ?: ""
     }
 
     open class UriPartFilter(displayName: String, private val vals: Array<Pair<String?, String>>) :
@@ -354,12 +361,12 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
             .subscribe(
                 {
                     categories = try {
-                        json.decodeFromString(it.body!!.string())
+                        json.decodeFromString(it.body.string())
                     } catch (e: Exception) {
                         emptyList()
                     }
                 },
-                {}
+                {},
             )
     }
 
@@ -380,7 +387,7 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
                     .map {
                         val pinned = if (it.pinned == "1") pin else ""
                         Pair(it.id, "$pinned${it.name}")
-                    }
+                    },
             )
             .toTypedArray()
     }
@@ -455,8 +462,11 @@ open class LANraragi(private val suffix: String = "") : ConfigurableSource, Unme
         private const val HOSTNAME_KEY = "hostname"
         private const val APIKEY_KEY = "apiKey"
         private const val CUSTOM_LABEL_KEY = "customLabel"
+        private const val NEW_ONLY_DEFAULT = true
         private const val NEW_ONLY_KEY = "latestNewOnly"
         private const val SORT_BY_NS_DEFAULT = "date_added"
         private const val SORT_BY_NS_KEY = "latestNamespacePref"
+        private const val CLEAR_NEW_KEY = "clearNew"
+        private const val CLEAR_NEW_DEFAULT = true
     }
 }

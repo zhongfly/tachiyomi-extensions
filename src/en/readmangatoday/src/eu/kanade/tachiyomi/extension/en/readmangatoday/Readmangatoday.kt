@@ -63,7 +63,7 @@ class Readmangatoday : ParsedHttpSource() {
         element.selectFirst("h2")?.let {
             manga.title = it.text()
         }
-        element.select("a").first().let {
+        element.select("a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
         }
         manga.thumbnail_url = element.select("img").attr("src")
@@ -92,6 +92,7 @@ class Readmangatoday : ParsedHttpSource() {
                         Filter.TriState.STATE_EXCLUDE -> builder.add("exclude[]", genre.id.toString())
                     }
                 }
+                else -> {}
             }
         }
         return POST("$baseUrl/advanced-search", headers, builder.build())
@@ -106,7 +107,7 @@ class Readmangatoday : ParsedHttpSource() {
     override fun searchMangaNextPageSelector() = "div.next-page > a.next"
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val detailElement = document.select("div.productDetail").first()
+        val detailElement = document.select("div.productDetail").first()!!
         val genreElement = detailElement.select("b:contains(Genres)+span.mgen>a")
 
         val manga = SManga.create()
@@ -115,10 +116,7 @@ class Readmangatoday : ParsedHttpSource() {
         manga.description = detailElement.select("div.productRight div.infox h2:contains(Description)~p:eq(2)").first()?.text()
         manga.status = detailElement.select("div.imptdt:contains(Status)>i").first()?.text().orEmpty().let { parseStatus(it) }
         manga.thumbnail_url = detailElement.select("div.thumb img").first()?.attr("src")
-
-        val genres = mutableListOf<String>()
-        genreElement?.forEach { genres.add(it.text()) }
-        manga.genre = genres.joinToString(", ")
+        manga.genre = genreElement.joinToString(", ") { it.text() }
 
         return manga
     }
@@ -132,7 +130,7 @@ class Readmangatoday : ParsedHttpSource() {
     override fun chapterListSelector() = "div#chapters-tabContent div.cardFlex div.checkBoxCard"
 
     override fun chapterFromElement(element: Element): SChapter {
-        val urlElement = element.select("a").first()
+        val urlElement = element.select("a").first()!!
 
         val chapter = SChapter.create()
         chapter.setUrlWithoutDomain(urlElement.attr("href"))
@@ -208,7 +206,7 @@ class Readmangatoday : ParsedHttpSource() {
         TextField("Artist", "artist-name"),
         Type(),
         Status(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     // [...document.querySelectorAll("ul.manga-cat span")].map(el => `Genre("${el.nextSibling.textContent.trim()}", ${el.getAttribute('data-id')})`).join(',\n')
@@ -248,6 +246,6 @@ class Readmangatoday : ParsedHttpSource() {
         Genre("Supernatural", 34),
         Genre("Tragedy", 35),
         Genre("Yaoi", 36),
-        Genre("Yuri", 37)
+        Genre("Yuri", 37),
     )
 }

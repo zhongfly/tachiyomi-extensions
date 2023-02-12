@@ -37,8 +37,8 @@ class DynastyDoujins : DynastyScans() {
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create().apply {
-            title = document.selectFirst("div#main > h2 > b").text().substringAfter("Doujins › ")
-            description = document.select("div#main > div.description")?.text()
+            title = document.selectFirst("div#main > h2 > b")!!.text().substringAfter("Doujins › ")
+            description = document.select("div#main > div.description").text()
             thumbnail_url = document.select("a.thumbnail img").firstOrNull()?.attr("abs:src")
                 ?.replace("/thumb/", "/medium/")
         }
@@ -54,12 +54,14 @@ class DynastyDoujins : DynastyScans() {
         val chapters = document.select(chapterListSelector()).map { chapterFromElement(it) }.toMutableList()
 
         document.select("a.thumbnail img").let { images ->
-            if (images.isNotEmpty()) chapters.add(
-                SChapter.create().apply {
-                    name = "Images"
-                    setUrlWithoutDomain(document.location() + "/images")
-                }
-            )
+            if (images.isNotEmpty()) {
+                chapters.add(
+                    SChapter.create().apply {
+                        name = "Images"
+                        setUrlWithoutDomain(document.location() + "/images")
+                    },
+                )
+            }
         }
 
         return chapters

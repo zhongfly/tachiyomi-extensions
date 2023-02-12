@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit
 
 open class BatoTo(
     final override val lang: String,
-    private val siteLang: String
+    private val siteLang: String,
 ) : ConfigurableSource, ParsedHttpSource() {
 
     private val preferences: SharedPreferences by lazy {
@@ -200,7 +200,8 @@ open class BatoTo(
                         is GenreGroupFilter -> {
                             with(filter) {
                                 url.addQueryParameter(
-                                    "genres", included.joinToString(",") + "|" + excluded.joinToString(",")
+                                    "genres",
+                                    included.joinToString(",") + "|" + excluded.joinToString(","),
                                 )
                             }
                         }
@@ -266,7 +267,7 @@ open class BatoTo(
     }
 
     private fun queryHistoryParse(response: Response): MangasPage {
-        val json = json.decodeFromString<JsonObject>(response.body!!.string())
+        val json = json.decodeFromString<JsonObject>(response.body.string())
         val html = json.jsonObject["html"]!!.jsonPrimitive.content
 
         val document = Jsoup.parse(html, response.request.url.toString())
@@ -344,8 +345,8 @@ open class BatoTo(
                 when {
                     manga.url.startsWith("http") -> manga.url
                     else -> "$baseUrl${manga.url}"
-                }
-            )
+                },
+            ),
         ).execute().asJsoup()
         if (getAltChapterListPref() || checkChapterLists(url)) {
             val id = manga.url.substringBeforeLast("/").substringAfterLast("/").trim()
@@ -357,12 +358,12 @@ open class BatoTo(
     }
 
     private fun altChapterParse(response: Response, title: String): List<SChapter> {
-        return Jsoup.parse(response.body!!.string(), response.request.url.toString(), Parser.xmlParser())
+        return Jsoup.parse(response.body.string(), response.request.url.toString(), Parser.xmlParser())
             .select("channel > item").map { item ->
                 SChapter.create().apply {
-                    url = item.selectFirst("guid").text()
-                    name = item.selectFirst("title").text().substringAfter(title).trim()
-                    date_upload = SimpleDateFormat("E, dd MMM yyyy H:m:s Z", Locale.US).parse(item.selectFirst("pubDate").text())?.time ?: 0L
+                    url = item.selectFirst("guid")!!.text()
+                    name = item.selectFirst("title")!!.text().substringAfter(title).trim()
+                    date_upload = SimpleDateFormat("E, dd MMM yyyy H:m:s Z", Locale.US).parse(item.selectFirst("pubDate")!!.text())?.time ?: 0L
                 }
             }
     }
@@ -697,30 +698,41 @@ open class BatoTo(
         TriStateFilterOption("manhwa", "Manhwa"),
         TriStateFilterOption("webtoon", "Webtoon"),
         TriStateFilterOption("western", "Western"),
-        TriStateFilterOption("josei", "Josei"),
-        TriStateFilterOption("seinen", "Seinen"),
-        TriStateFilterOption("shoujo", "Shoujo"),
-        TriStateFilterOption("shoujo_ai", "Shoujo ai"),
-        TriStateFilterOption("shounen", "Shounen"),
-        TriStateFilterOption("shounen_ai", "Shounen ai"),
-        TriStateFilterOption("yaoi", "Yaoi"),
-        TriStateFilterOption("yuri", "Yuri"),
-        TriStateFilterOption("ecchi", "Ecchi"),
-        TriStateFilterOption("mature", "Mature"),
-        TriStateFilterOption("adult", "Adult"),
+
+        TriStateFilterOption("shoujo", "Shoujo(G)"),
+        TriStateFilterOption("shounen", "Shounen(B)"),
+        TriStateFilterOption("josei", "Josei(W)"),
+        TriStateFilterOption("seinen", "Seinen(M)"),
+        TriStateFilterOption("yuri", "Yuri(GL)"),
+        TriStateFilterOption("yaoi", "Yaoi(BL)"),
+        TriStateFilterOption("futa", "Futa(WL)"),
+        TriStateFilterOption("bara", "Bara(ML)"),
+
         TriStateFilterOption("gore", "Gore"),
+        TriStateFilterOption("bloody", "Bloody"),
         TriStateFilterOption("violence", "Violence"),
+        TriStateFilterOption("ecchi", "Ecchi"),
+        TriStateFilterOption("adult", "Adult"),
+        TriStateFilterOption("mature", "Mature"),
         TriStateFilterOption("smut", "Smut"),
         TriStateFilterOption("hentai", "Hentai"),
+
         TriStateFilterOption("_4_koma", "4-Koma"),
         TriStateFilterOption("action", "Action"),
         TriStateFilterOption("adaptation", "Adaptation"),
         TriStateFilterOption("adventure", "Adventure"),
+        TriStateFilterOption("age_gap", "Age Gap"),
         TriStateFilterOption("aliens", "Aliens"),
         TriStateFilterOption("animals", "Animals"),
         TriStateFilterOption("anthology", "Anthology"),
+        TriStateFilterOption("beasts", "Beasts"),
+        TriStateFilterOption("bodyswap", "Bodyswap"),
         TriStateFilterOption("cars", "cars"),
+        TriStateFilterOption("cheating_infidelity", "Cheating/Infidelity"),
+        TriStateFilterOption("childhood_friends", "Childhood Friends"),
+        TriStateFilterOption("college_life", "College Life"),
         TriStateFilterOption("comedy", "Comedy"),
+        TriStateFilterOption("contest_winning", "Contest Winning"),
         TriStateFilterOption("cooking", "Cooking"),
         TriStateFilterOption("crime", "crime"),
         TriStateFilterOption("crossdressing", "Crossdressing"),
@@ -728,8 +740,11 @@ open class BatoTo(
         TriStateFilterOption("dementia", "Dementia"),
         TriStateFilterOption("demons", "Demons"),
         TriStateFilterOption("drama", "Drama"),
+        TriStateFilterOption("dungeons", "Dungeons"),
+        TriStateFilterOption("emperor_daughte", "Emperor's Daughter"),
         TriStateFilterOption("fantasy", "Fantasy"),
         TriStateFilterOption("fan_colored", "Fan-Colored"),
+        TriStateFilterOption("fetish", "Fetish"),
         TriStateFilterOption("full_color", "Full Color"),
         TriStateFilterOption("game", "Game"),
         TriStateFilterOption("gender_bender", "Gender Bender"),
@@ -744,7 +759,6 @@ open class BatoTo(
         TriStateFilterOption("isekai", "Isekai"),
         TriStateFilterOption("kids", "Kids"),
         TriStateFilterOption("loli", "Loli"),
-        TriStateFilterOption("lolicon", "lolicon"),
         TriStateFilterOption("magic", "Magic"),
         TriStateFilterOption("magical_girls", "Magical Girls"),
         TriStateFilterOption("martial_arts", "Martial Arts"),
@@ -758,22 +772,29 @@ open class BatoTo(
         TriStateFilterOption("netorare", "Netorare/NTR"),
         TriStateFilterOption("ninja", "Ninja"),
         TriStateFilterOption("office_workers", "Office Workers"),
+        TriStateFilterOption("omegaverse", "Omegaverse"),
         TriStateFilterOption("oneshot", "Oneshot"),
         TriStateFilterOption("parody", "parody"),
         TriStateFilterOption("philosophical", "Philosophical"),
         TriStateFilterOption("police", "Police"),
         TriStateFilterOption("post_apocalyptic", "Post-Apocalyptic"),
         TriStateFilterOption("psychological", "Psychological"),
+        TriStateFilterOption("regression", "Regression"),
         TriStateFilterOption("reincarnation", "Reincarnation"),
         TriStateFilterOption("reverse_harem", "Reverse Harem"),
+        TriStateFilterOption("reverse_isekai", "Reverse Isekai"),
         TriStateFilterOption("romance", "Romance"),
+        TriStateFilterOption("royal_family", "Royal Family"),
+        TriStateFilterOption("royalty", "Royalty"),
         TriStateFilterOption("samurai", "Samurai"),
         TriStateFilterOption("school_life", "School Life"),
         TriStateFilterOption("sci_fi", "Sci-Fi"),
         TriStateFilterOption("shota", "Shota"),
-        TriStateFilterOption("shotacon", "shotacon"),
+        TriStateFilterOption("shoujo_ai", "Shoujo Ai"),
+        TriStateFilterOption("shounen_ai", "Shounen Ai"),
+        TriStateFilterOption("showbiz", "Showbiz"),
         TriStateFilterOption("slice_of_life", "Slice of Life"),
-        TriStateFilterOption("sm_bdsm", "SM/BDSM"),
+        TriStateFilterOption("sm_bdsm", "SM/BDSM/SUB-DOM"),
         TriStateFilterOption("space", "Space"),
         TriStateFilterOption("sports", "Sports"),
         TriStateFilterOption("super_power", "Super Power"),
@@ -782,9 +803,12 @@ open class BatoTo(
         TriStateFilterOption("survival", "Survival"),
         TriStateFilterOption("thriller", "Thriller"),
         TriStateFilterOption("time_travel", "Time Travel"),
+        TriStateFilterOption("tower_climbing", "Tower Climbing"),
         TriStateFilterOption("traditional_games", "Traditional Games"),
         TriStateFilterOption("tragedy", "Tragedy"),
+        TriStateFilterOption("transmigration", "Transmigration"),
         TriStateFilterOption("vampires", "Vampires"),
+        TriStateFilterOption("villainess", "Villainess"),
         TriStateFilterOption("video_games", "Video Games"),
         TriStateFilterOption("virtual_reality", "Virtual Reality"),
         TriStateFilterOption("wuxia", "Wuxia"),
@@ -792,9 +816,11 @@ open class BatoTo(
         TriStateFilterOption("xuanhuan", "Xuanhuan"),
         TriStateFilterOption("zombies", "Zombies"),
         // Hidden Genres
+        TriStateFilterOption("shotacon", "shotacon"),
+        TriStateFilterOption("lolicon", "lolicon"),
         TriStateFilterOption("award_winning", "Award Winning"),
         TriStateFilterOption("youkai", "Youkai"),
-        TriStateFilterOption("uncategorized", "Uncategorized")
+        TriStateFilterOption("uncategorized", "Uncategorized"),
     )
 
     private fun getLangFilter() = listOf(
@@ -924,7 +950,7 @@ open class BatoTo(
             "dto.to",
             "hto.to",
             "mto.to",
-            "wto.to"
+            "wto.to",
         )
         private val MIRROR_PREF_ENTRY_VALUES = arrayOf(
             "https://bato.to",
@@ -940,7 +966,7 @@ open class BatoTo(
             "https://dto.to",
             "https://hto.to",
             "https://mto.to",
-            "https://wto.to"
+            "https://wto.to",
         )
         private val MIRROR_PREF_DEFAULT_VALUE = MIRROR_PREF_ENTRY_VALUES[0]
 

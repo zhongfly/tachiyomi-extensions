@@ -38,7 +38,7 @@ class Webcomics : ParsedHttpSource() {
 
     private fun mangaFromElement(element: Element): SManga {
         val manga = SManga.create()
-        element.select("a").first().let {
+        element.select("a").first()!!.let {
             manga.setUrlWithoutDomain(it.attr("href"))
             manga.title = it.select("h5").text()
         }
@@ -73,7 +73,7 @@ class Webcomics : ParsedHttpSource() {
         val manga = SManga.create()
         infoElement.let {
             manga.title = it.select(".wiki-book-title").text().trim()
-            manga.setUrlWithoutDomain(it.select("a").first().attr("href"))
+            manga.setUrlWithoutDomain(it.select("a").first()!!.attr("href"))
         }
         return manga
     }
@@ -88,6 +88,7 @@ class Webcomics : ParsedHttpSource() {
                     val genre = getGenreList()[filter.state]
                     url?.addQueryParameter("category", genre)
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -96,8 +97,8 @@ class Webcomics : ParsedHttpSource() {
     override fun searchMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
         var nextPage = true
-        val mangas = document.select(searchMangaSelector()).filter {
-            val shouldFilter = it.select(".col-md-2 > a").first().text() == "READ"
+        val mangas = document.select(searchMangaSelector()).toList().filter {
+            val shouldFilter = it.select(".col-md-2 > a").first()!!.text() == "READ"
             if (nextPage) {
                 nextPage = shouldFilter
             }
@@ -153,7 +154,7 @@ class Webcomics : ParsedHttpSource() {
     override fun pageListParse(document: Document) = document
         .select("section.book-reader .img-list > li > img")
         .mapIndexed {
-            i, element ->
+                i, element ->
             Page(i, "", element.attr("data-original"))
         }
 
@@ -162,7 +163,7 @@ class Webcomics : ParsedHttpSource() {
     private class GenreFilter(genres: Array<String>) : Filter.Select<String>("Genre", genres)
 
     override fun getFilterList() = FilterList(
-        GenreFilter(getGenreList())
+        GenreFilter(getGenreList()),
     )
 
     // [...$('.row.wiki-book-nav .col-md-8 ul a')].map(el => `"${el.textContent.trim()}"`).join(',\n')
@@ -181,6 +182,6 @@ class Webcomics : ParsedHttpSource() {
         "Thriller",
         "Historical",
         "Sci-fi",
-        "Slice of Life"
+        "Slice of Life",
     )
 }

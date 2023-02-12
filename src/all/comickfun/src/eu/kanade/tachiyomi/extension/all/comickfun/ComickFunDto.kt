@@ -4,21 +4,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Manga(
+    val hid: String,
     val slug: String,
     val title: String,
-    val cover_url: String
-)
-
-@Serializable
-data class LatestChapters(
-    val md_comics: MdComics
-)
-
-@Serializable
-data class MdComics(
-    val title: String,
-    val slug: String,
-    val cover_url: String
+    val cover_url: String,
 )
 
 @Serializable
@@ -26,7 +15,7 @@ data class MangaDetails(
     val comic: Comic,
     val artists: Array<Artist>,
     val authors: Array<Author>,
-    val genres: Array<Genre>
+    val genres: Array<Genre>,
 )
 
 @Serializable
@@ -37,7 +26,7 @@ data class Comic(
     val desc: String = "N/A",
     val status: Int,
     val chapter_count: Int?,
-    val cover_url: String
+    val cover_url: String,
 )
 
 @Serializable
@@ -60,7 +49,7 @@ data class Genre(
 
 @Serializable
 data class ChapterList(
-    val chapters: Array<Chapter>
+    val chapters: Array<Chapter>,
 )
 
 @Serializable
@@ -70,20 +59,20 @@ data class Chapter(
     val created_at: String = "",
     val chap: String = "",
     val vol: String = "",
-    val group_name: Array<String> = arrayOf("")
+    val group_name: Array<String> = arrayOf(""),
 )
 
 @Serializable
 data class PageList(
-    val chapter: ChapterPageData
+    val chapter: ChapterPageData,
 )
 
 @Serializable
 data class ChapterPageData(
-    val images: Array<Page>
+    val images: Array<Page>,
 )
 
 @Serializable
 data class Page(
-    val url: String
+    val url: String? = null,
 )

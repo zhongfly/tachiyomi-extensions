@@ -18,7 +18,7 @@ import java.util.Locale
 
 class LOLUniverse(
     private val siteLang: String,
-    override val lang: String = siteLang.substring(0, 2)
+    override val lang: String = siteLang.substring(0, 2),
 ) : HttpSource() {
     override val baseUrl = "$UNIVERSE_URL/$siteLang/comic/"
 
@@ -110,7 +110,7 @@ class LOLUniverse(
         throw UnsupportedOperationException("Not used")
 
     private inline fun <reified T> Response.decode() =
-        json.decodeFromString<T>(body!!.string())
+        json.decodeFromString<T>(body.string())
 
     private fun String.clean() =
         replace("</p> ", "</p>").replace("</p>", "\n").replace("<p>", "")
@@ -129,7 +129,7 @@ class LOLUniverse(
         mangas.filter {
             it.title.contains(query, true) ||
                 it.genre?.contains(query, true) ?: false
-        }
+        },
     )
 
     companion object {

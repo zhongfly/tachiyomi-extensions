@@ -26,7 +26,7 @@ import java.util.Calendar
 abstract class FMReader(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : ParsedHttpSource() {
 
     override val supportsLatest = true
@@ -88,11 +88,13 @@ abstract class FMReader(
                             0 -> "name"
                             1 -> "views"
                             else -> "last_update"
-                        }
+                        },
                     )
-                    if (filter.state?.ascending == true)
+                    if (filter.state?.ascending == true) {
                         url.addQueryParameter("sort_type", "ASC")
+                    }
                 }
+                else -> {}
             }
         }
         return GET(url.toString(), headers)
@@ -107,7 +109,7 @@ abstract class FMReader(
         val mangas = document.select(popularMangaSelector()).map { popularMangaFromElement(it) }
 
         // check if there's a next page
-        val hasNextPage = (document.select(popularMangaNextPageSelector())?.first()?.text() ?: "").let {
+        val hasNextPage = (document.select(popularMangaNextPageSelector()).first()?.text() ?: "").let {
             if (it.contains(Regex("""\w*\s\d*\s\w*\s\d*"""))) {
                 it.split(" ").let { pageOf -> pageOf[1] != pageOf[3] } // current page not last page
             } else {
@@ -132,7 +134,7 @@ abstract class FMReader(
 
     override fun popularMangaFromElement(element: Element): SManga {
         return SManga.create().apply {
-            element.select("$headerSelector").let {
+            element.select(headerSelector).let {
                 setUrlWithoutDomain(it.attr("abs:href"))
                 title = it.text()
             }
@@ -156,7 +158,7 @@ abstract class FMReader(
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("div.row").first()
+        val infoElement = document.select("div.row").first()!!
 
         return SManga.create().apply {
             author = infoElement.select("li a.btn-info").eachText().filter {
@@ -185,14 +187,16 @@ abstract class FMReader(
     // languages: en, vi, tr
     fun parseStatus(status: String?): Int {
         val completedWords = setOf(
-            "completed", "complete", "incomplete",
-            "đã hoàn thành", "hoàn thành",
-            "tamamlandı"
+            "completed",
+            "complete",
+            "đã hoàn thành",
+            "hoàn thành",
+            "tamamlandı",
         )
         val ongoingWords = setOf(
-            "ongoing", "on going", "updating",
+            "ongoing", "on going", "updating", "incomplete",
             "chưa hoàn thành", "đang cập nhật", "Đang tiến hành",
-            "devam ediyor", "Çevirisi Bırakıldı", "Çevirisi Yok"
+            "devam ediyor", "Çevirisi Bırakıldı", "Çevirisi Yok",
         )
         return when {
             status == null -> SManga.UNKNOWN
@@ -223,7 +227,7 @@ abstract class FMReader(
     open fun chapterFromElement(element: Element, mangaTitle: String = ""): SChapter {
         return SChapter.create().apply {
             if (chapterUrlSelector != "") {
-                element.select(chapterUrlSelector).first().let {
+                element.select(chapterUrlSelector).first()!!.let {
                     setUrlWithoutDomain(it.attr("abs:href"))
                     name = it.text().substringAfter("$mangaTitle ")
                 }
@@ -335,7 +339,7 @@ abstract class FMReader(
         TextField("Group", "group"),
         Status(),
         SortBy(),
-        GenreList(getGenreList())
+        GenreList(getGenreList()),
     )
 
     // [...document.querySelectorAll("div.panel-body a")].map((el,i) => `Genre("${el.innerText.trim()}")`).join(',\n')
@@ -379,7 +383,7 @@ abstract class FMReader(
         Genre("Supernatural"),
         Genre("Tragedy"),
         Genre("Adventure"),
-        Genre("Yaoi")
+        Genre("Yaoi"),
     )
 
     // from manhwa18.com/search, removed a few that didn't return results/wouldn't be terribly useful
@@ -426,7 +430,7 @@ abstract class FMReader(
         Genre("Supernatural"),
         Genre("Tragedy"),
         Genre("VnComic"),
-        Genre("Webtoon")
+        Genre("Webtoon"),
     )
 
     // taken from readcomiconline.org/search
@@ -476,6 +480,6 @@ abstract class FMReader(
         Genre("VideoGames"),
         Genre("War"),
         Genre("Western"),
-        Genre("Zombies")
+        Genre("Zombies"),
     )
 }

@@ -112,6 +112,7 @@ class Hentai2Read : ParsedHttpSource() {
                             }
                         }
                         is SortOrder -> sortOrder = filter.toUriPart()
+                        else -> {}
                     }
                 }
             }
@@ -124,7 +125,7 @@ class Hentai2Read : ParsedHttpSource() {
     // If the user wants to search by a sort order other than alphabetical, we have to make another call
     private fun parseSearch(response: Response, page: Int, sortOrder: String?): MangasPage {
         val document = if (page == 1 && sortOrder != null) {
-            response.asJsoup().select("li.dropdown li:contains($sortOrder) a").first().attr("abs:href")
+            response.asJsoup().select("li.dropdown li:contains($sortOrder) a").first()!!.attr("abs:href")
                 .let { client.newCall(GET(it, headers)).execute().asJsoup() }
         } else {
             response.asJsoup()
@@ -153,43 +154,45 @@ class Hentai2Read : ParsedHttpSource() {
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
     override fun mangaDetailsParse(document: Document): SManga {
-        val infoElement = document.select("ul.list-simple-mini").first()
+        val infoElement = document.select("ul.list-simple-mini").first()!!
 
         val manga = SManga.create()
-        manga.author = infoElement.select("li:contains(Author) > a")?.text()
-        manga.artist = infoElement.select("li:contains(Artist) > a")?.text()
+        manga.author = infoElement.select("li:contains(Author) > a").text()
+        manga.artist = infoElement.select("li:contains(Artist) > a").text()
         manga.genre = infoElement.select("li:contains(Category) > a, li:contains(Content) > a").joinToString(", ") { it.text() }
         manga.description = buildDescription(infoElement)
-        manga.status = infoElement.select("li:contains(Status) > a")?.text().orEmpty().let { parseStatus(it) }
-        manga.thumbnail_url = document.select("a#js-linkNext > img")?.attr("src")
-        manga.title = document.select("h3.block-title > a").first().ownText().trim()
+        manga.status = infoElement.select("li:contains(Status) > a").text().orEmpty().let { parseStatus(it) }
+        manga.thumbnail_url = document.select("a#js-linkNext > img").attr("src")
+        manga.title = document.select("h3.block-title > a").first()!!.ownText().trim()
         return manga
     }
 
     private fun buildDescription(infoElement: Element): String {
-
         val topDescriptions = listOf(
             Pair(
                 "Alternative Title",
-                infoElement.select("li").first().text().let {
-                    if (it.trim() == "-") emptyList()
-                    else it.split(", ")
-                }
+                infoElement.select("li").first()!!.text().let {
+                    if (it.trim() == "-") {
+                        emptyList()
+                    } else {
+                        it.split(", ")
+                    }
+                },
             ),
             Pair(
                 "Storyline",
-                listOf(infoElement.select("li:contains(Storyline) > p")?.text())
-            )
+                listOf(infoElement.select("li:contains(Storyline) > p").text()),
+            ),
         )
 
         val descriptions = listOf(
             "Parody",
             "Page",
             "Character",
-            "Language"
+            "Language",
         ).map { it to infoElement.select("li:contains($it) a").map { v -> v.text() } }
             .let { topDescriptions + it } // start with topDescriptions
-            .filter { !it.second.isNullOrEmpty() && it.second[0] != "-" }
+            .filter { !it.second.isEmpty() && it.second[0] != "-" }
             .map { "${it.first}:\n${it.second.joinToString()}" }
 
         return descriptions.joinToString("\n\n")
@@ -206,7 +209,7 @@ class Hentai2Read : ParsedHttpSource() {
     override fun chapterFromElement(element: Element): SChapter {
         return SChapter.create().apply {
             setUrlWithoutDomain(element.attr("href"))
-            var time = element.select("div > small").text().substringAfter("about").substringBefore("ago")
+            val time = element.select("div > small").text().substringAfter("about").substringBefore("ago")
             name = element.ownText().trim()
             if (time != "") {
                 date_upload = parseChapterDate(time)
@@ -247,7 +250,7 @@ class Hentai2Read : ParsedHttpSource() {
 
     override fun pageListParse(response: Response): List<Page> {
         val pages = mutableListOf<Page>()
-        val m = pagesUrlPattern.matcher(response.body!!.string())
+        val m = pagesUrlPattern.matcher(response.body.string())
         var i = 0
         while (m.find()) {
             m.group(1)?.split(",")?.forEach {
@@ -299,13 +302,13 @@ class Hentai2Read : ParsedHttpSource() {
         Filter.Separator(),
         TagList("Tags", getTagList()),
         Filter.Separator(),
-        TagList("Doujins", getDoujinList())
+        TagList("Doujins", getDoujinList()),
     )
 
     private fun getSortOrder() = arrayOf(
         Pair("Alphabetical", null),
         Pair("Most Popular", "most popular"),
-        Pair("Last Updated", "last updated")
+        Pair("Last Updated", "last updated"),
     )
 
     // Categories : 27
@@ -338,7 +341,7 @@ class Hentai2Read : ParsedHttpSource() {
         Tag("Tragedy", 49),
         Tag("Un-censored", 47),
         Tag("Yaoi", 27),
-        Tag("Yuri", 28)
+        Tag("Yuri", 28),
     )
 
     // Tags : 355
@@ -705,7 +708,7 @@ class Hentai2Read : ParsedHttpSource() {
         Tag("Yandere", 873),
         Tag("Youkai", 1029),
         Tag("Young Master", 500),
-        Tag("Yuri as a Subplot", 2342)
+        Tag("Yuri as a Subplot", 2342),
     )
 
     // Doujins : 868
@@ -1747,6 +1750,6 @@ class Hentai2Read : ParsedHttpSource() {
         Tag("Zettai Karen Children", 1022),
         Tag("Zoids Genesis", 1052),
         Tag("Zombie Land Saga", 2458),
-        Tag("Zone of the Enders", 1997)
+        Tag("Zone of the Enders", 1997),
     )
 }

@@ -25,7 +25,7 @@ import uy.kohesive.injekt.api.get
 abstract class BakkinReaderX(
     override val name: String,
     override val baseUrl: String,
-    override val lang: String
+    override val lang: String,
 ) : ConfigurableSource, HttpSource() {
     override val supportsLatest = false
 
@@ -49,7 +49,7 @@ abstract class BakkinReaderX(
             rx.Observable.just(block(seriesCache))!!
         } else {
             client.newCall(GET(mainUrl, headers)).asObservableSuccess().map {
-                seriesCache = json.parseToJsonElement(it.body!!.string())
+                seriesCache = json.parseToJsonElement(it.body.string())
                     .jsonObject.values.map(json::decodeFromJsonElement)
                 block(seriesCache)
             }!!

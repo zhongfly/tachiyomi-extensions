@@ -52,7 +52,7 @@ val SharedPreferences.langData: List<LangData>
 @Synchronized
 fun updateLangData(client: OkHttpClient, headers: Headers, preferences: SharedPreferences) {
     val lastUpdated = client.newCall(GET("$BASE_URL/0_sources/last_updated.txt", headers))
-        .execute().body!!.string().substringBefore('\n').toLong()
+        .execute().body.string().substringBefore('\n').toLong()
     if (lastUpdated <= preferences.lastUpdated) return
 
     val editor = preferences.edit().putLong(LAST_UPDATED_PREF, lastUpdated)
@@ -72,7 +72,7 @@ fun updateLangData(client: OkHttpClient, headers: Headers, preferences: SharedPr
                 name = dto.local_name,
                 code = dto.iso_code.ifEmpty { key },
                 translators = dto.translators.joinToString(),
-                translatedCount = translatedCount[key] ?: 0
+                translatedCount = translatedCount[key] ?: 0,
             )
         }
         .filter { it.translatedCount > 0 }
@@ -99,8 +99,8 @@ private fun fetchTitles(client: OkHttpClient, headers: Headers): Map<String, Str
     val url = "https://framagit.org/search?project_id=76196&search=core/mod-header.php:4"
     val document = client.newCall(GET(url, headers)).execute().asJsoup()
     val result = hashMapOf<String, String>()
-    for (file in document.selectFirst(Evaluator.Class("search-results")).children()) {
-        val filename = file.selectFirst(Evaluator.Tag("strong")).ownText()
+    for (file in document.selectFirst(Evaluator.Class("search-results"))!!.children()) {
+        val filename = file.selectFirst(Evaluator.Tag("strong"))!!.ownText()
         if (!filename.endsWith(".po") || !filename.startsWith("po/")) continue
         val lang = filename.substring(3, filename.length - 3)
 
@@ -125,7 +125,7 @@ private fun fetchTitles(client: OkHttpClient, headers: Headers): Map<String, Str
     return result
 }
 
-private inline fun <reified T> Response.parseAs(): T = json.decodeFromString(body!!.string())
+private inline fun <reified T> Response.parseAs(): T = json.decodeFromString(body.string())
 
 private inline fun <reified T> ProtoBuf.decodeFromBase64(base64: String): T =
     decodeFromByteArray(Base64.decode(base64, Base64.NO_WRAP))

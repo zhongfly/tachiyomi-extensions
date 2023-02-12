@@ -43,7 +43,7 @@ import uy.kohesive.injekt.injectLazy
 import java.util.Calendar
 
 abstract class Luscious(
-    final override val lang: String
+    final override val lang: String,
 ) : ConfigurableSource, HttpSource() {
 
     override val supportsLatest: Boolean = true
@@ -67,12 +67,14 @@ abstract class Luscious(
     private val rewriteOctetStream: Interceptor = Interceptor { chain ->
         val originalResponse: Response = chain.proceed(chain.request())
         if (originalResponse.headers("Content-Type").contains("application/octet-stream") && originalResponse.request.url.toString().contains(".webp")) {
-            val orgBody = originalResponse.body!!.bytes()
+            val orgBody = originalResponse.body.bytes()
             val newBody = orgBody.toResponseBody("image/webp".toMediaTypeOrNull())
             originalResponse.newBuilder()
                 .body(newBody)
                 .build()
-        } else originalResponse
+        } else {
+            originalResponse
+        }
     }
 
     private val lusLang: String = toLusLang(lang)
@@ -114,20 +116,25 @@ abstract class Luscious(
                 put("display", sortByFilter.selected)
                 put("page", page)
                 putJsonArray("filters") {
-                    if (contentTypeFilter.selected != FILTER_VALUE_IGNORE)
+                    if (contentTypeFilter.selected != FILTER_VALUE_IGNORE) {
                         add(contentTypeFilter.toJsonObject("content_id"))
+                    }
 
-                    if (albumTypeFilter.selected != FILTER_VALUE_IGNORE)
+                    if (albumTypeFilter.selected != FILTER_VALUE_IGNORE) {
                         add(albumTypeFilter.toJsonObject("album_type"))
+                    }
 
-                    if (selectionFilter.selected != FILTER_VALUE_IGNORE)
+                    if (selectionFilter.selected != FILTER_VALUE_IGNORE) {
                         add(selectionFilter.toJsonObject("selection"))
+                    }
 
-                    if (albumSizeFilter.selected != FILTER_VALUE_IGNORE)
+                    if (albumSizeFilter.selected != FILTER_VALUE_IGNORE) {
                         add(albumSizeFilter.toJsonObject("picture_count_rank"))
+                    }
 
-                    if (restrictGenresFilter.selected != FILTER_VALUE_IGNORE)
+                    if (restrictGenresFilter.selected != FILTER_VALUE_IGNORE) {
                         add(restrictGenresFilter.toJsonObject("restrict_genres"))
+                    }
 
                     with(interestsFilter) {
                         if (this.selected.isEmpty()) {
@@ -143,10 +150,10 @@ abstract class Luscious(
                                 languageIds.toMutableMap().apply {
                                     put(
                                         "value",
-                                        JsonPrimitive("+$lusLang${languageIds["value"]!!.jsonPrimitive.content}")
+                                        JsonPrimitive("+$lusLang${languageIds["value"]!!.jsonPrimitive.content}"),
                                     )
-                                }
-                            )
+                                },
+                            ),
                         )
                     }
 
@@ -158,7 +165,7 @@ abstract class Luscious(
                             buildJsonObject {
                                 put("name", "tagged")
                                 put("value", tags)
-                            }
+                            },
                         )
                     }
 
@@ -167,7 +174,7 @@ abstract class Luscious(
                             buildJsonObject {
                                 put("name", "created_by_id")
                                 put("value", creatorFilter.state)
-                            }
+                            },
                         )
                     }
 
@@ -176,7 +183,7 @@ abstract class Luscious(
                             buildJsonObject {
                                 put("name", "favorite_by_user_id")
                                 put("value", favoriteFilter.state)
-                            }
+                            },
                         )
                     }
 
@@ -189,7 +196,7 @@ abstract class Luscious(
                             buildJsonObject {
                                 put("name", "search_query")
                                 put("value", query)
-                            }
+                            },
                         )
                     }
                 }
@@ -208,7 +215,7 @@ abstract class Luscious(
     }
 
     private fun parseAlbumListResponse(response: Response): MangasPage {
-        val data = json.decodeFromString<JsonObject>(response.body!!.string())
+        val data = json.decodeFromString<JsonObject>(response.body.string())
         with(data["data"]!!.jsonObject["album"]!!.jsonObject["list"]) {
             return MangasPage(
                 this!!.jsonObject["items"]!!.jsonArray.map {
@@ -218,7 +225,7 @@ abstract class Luscious(
                         thumbnail_url = it.jsonObject["cover"]!!.jsonObject["url"]!!.jsonPrimitive.content
                     }
                 },
-                this.jsonObject["info"]!!.jsonObject["has_next_page"]!!.jsonPrimitive.boolean
+                this.jsonObject["info"]!!.jsonObject["has_next_page"]!!.jsonPrimitive.boolean,
             )
         }
     }
@@ -274,7 +281,7 @@ abstract class Luscious(
                     .let { it.first { f -> f.jsonObject["name"]!!.jsonPrimitive.content == "album_id" } }
                     .let { it.jsonObject["value"]!!.jsonPrimitive.content }
 
-                var data = json.decodeFromString<JsonObject>(response.body!!.string())
+                var data = json.decodeFromString<JsonObject>(response.body.string())
                     .let { it.jsonObject["data"]!!.jsonObject["picture"]!!.jsonObject["list"]!!.jsonObject }
 
                 while (nextPage) {
@@ -296,7 +303,7 @@ abstract class Luscious(
                     }
                     if (nextPage) {
                         val newPage = client.newCall(GET(buildAlbumPicturesPageUrl(id, page))).execute()
-                        data = json.decodeFromString<JsonObject>(newPage.body!!.string())
+                        data = json.decodeFromString<JsonObject>(newPage.body.string())
                             .let { it["data"]!!.jsonObject["picture"]!!.jsonObject["list"]!!.jsonObject }
                     }
                     page++
@@ -319,7 +326,7 @@ abstract class Luscious(
                         buildJsonObject {
                             put("name", "album_id")
                             put("value", id)
-                        }
+                        },
                     )
                 }
                 put("display", getSortPref())
@@ -346,7 +353,7 @@ abstract class Luscious(
             .let { it.first { f -> f.jsonObject["name"]!!.jsonPrimitive.content == "album_id" } }
             .let { it.jsonObject["value"]!!.jsonPrimitive.content }
 
-        var data = json.decodeFromString<JsonObject>(response.body!!.string())
+        var data = json.decodeFromString<JsonObject>(response.body.string())
             .let { it["data"]!!.jsonObject["picture"]!!.jsonObject["list"]!!.jsonObject }
 
         while (nextPage) {
@@ -364,7 +371,7 @@ abstract class Luscious(
             }
             if (nextPage) {
                 val newPage = client.newCall(GET(buildAlbumPicturesPageUrl(id, page))).execute()
-                data = json.decodeFromString<JsonObject>(newPage.body!!.string())
+                data = json.decodeFromString<JsonObject>(newPage.body.string())
                     .let { it["data"]!!.jsonObject["picture"]!!.jsonObject["list"]!!.jsonObject }
             }
             page++
@@ -399,7 +406,7 @@ abstract class Luscious(
         return client.newCall(GET(page.url, headers))
             .asObservableSuccess()
             .map {
-                val data = json.decodeFromString<JsonObject>(it.body!!.string()).let { data ->
+                val data = json.decodeFromString<JsonObject>(it.body.string()).let { data ->
                     data["data"]!!.jsonObject["picture"]!!.jsonObject["list"]!!.jsonObject
                 }
                 when (getResolutionPref()) {
@@ -423,7 +430,7 @@ abstract class Luscious(
     }
 
     private fun detailsParse(response: Response): SManga {
-        val data = json.decodeFromString<JsonObject>(response.body!!.string())
+        val data = json.decodeFromString<JsonObject>(response.body.string())
         with(data["data"]!!.jsonObject["album"]!!.jsonObject["get"]!!.jsonObject) {
             val manga = SManga.create()
             manga.url = this["url"]!!.jsonPrimitive.content
@@ -469,10 +476,13 @@ abstract class Luscious(
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = buildAlbumListRequest(
         page,
         filters.let {
-            if (it.isEmpty()) getSortFilters(SEARCH_DEFAULT_SORT_STATE)
-            else it
+            if (it.isEmpty()) {
+                getSortFilters(SEARCH_DEFAULT_SORT_STATE)
+            } else {
+                it
+            }
         },
-        query
+        query,
     )
 
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
@@ -488,10 +498,10 @@ abstract class Luscious(
 
     class TriStateFilterOption(name: String, val value: String) : Filter.TriState(name)
     abstract class TriStateGroupFilter(name: String, options: List<TriStateFilterOption>) : Filter.Group<TriStateFilterOption>(name, options) {
-        val included: List<String>
+        private val included: List<String>
             get() = state.filter { it.isIncluded() }.map { it.value }
 
-        val excluded: List<String>
+        private val excluded: List<String>
             get() = state.filter { it.isExcluded() }.map { it.value }
 
         fun anyNotIgnored(): Boolean = state.any { !it.isIgnored() }
@@ -618,13 +628,13 @@ abstract class Luscious(
     private fun getAlbumTypeFilters() = listOf(
         SelectFilterOption("All", FILTER_VALUE_IGNORE),
         SelectFilterOption("Manga", "manga"),
-        SelectFilterOption("Pictures", "pictures")
+        SelectFilterOption("Pictures", "pictures"),
     )
 
     private fun getRestrictGenresFilters() = listOf(
         SelectFilterOption("None", FILTER_VALUE_IGNORE),
         SelectFilterOption("Loose", "loose"),
-        SelectFilterOption("Strict", "strict")
+        SelectFilterOption("Strict", "strict"),
     )
 
     private fun getSelectionFilters() = listOf(
@@ -642,7 +652,7 @@ abstract class Luscious(
         SelectFilterOption("All", FILTER_VALUE_IGNORE),
         SelectFilterOption("Hentai", "0"),
         SelectFilterOption("Non-Erotic", "5"),
-        SelectFilterOption("Real People", "6")
+        SelectFilterOption("Real People", "6"),
     )
 
     private fun getAlbumSizeFilters() = listOf(
@@ -664,7 +674,7 @@ abstract class Luscious(
         CheckboxFilterOption("Trans", "5"),
         CheckboxFilterOption("Solo Girl", "6"),
         CheckboxFilterOption("Trans x Trans", "8"),
-        CheckboxFilterOption("Trans x Guy", "9")
+        CheckboxFilterOption("Trans x Guy", "9"),
     )
 
     private fun getLanguageFilters() = listOf(
@@ -678,7 +688,7 @@ abstract class Luscious(
         CheckboxFilterOption("Korean", toLusLang("ko"), false),
         CheckboxFilterOption("Others", toLusLang("other"), false),
         CheckboxFilterOption("Portuguese", toLusLang("pt-BR"), false),
-        CheckboxFilterOption("Thai", toLusLang("th"), false)
+        CheckboxFilterOption("Thai", toLusLang("th"), false),
     ).filterNot { it.value == lusLang }
 
     private fun getGenreFilters() = listOf(
@@ -737,7 +747,7 @@ abstract class Luscious(
         TriStateFilterOption("Video Games", "15"),
         TriStateFilterOption("Vintage", "58"),
         TriStateFilterOption("Western", "11"),
-        TriStateFilterOption("Workplace Sex", "50")
+        TriStateFilterOption("Workplace Sex", "50"),
     )
 
     private inline fun <reified T> Iterable<*>.findInstance() = find { it is T } as? T

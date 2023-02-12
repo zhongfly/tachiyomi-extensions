@@ -71,17 +71,20 @@ class Megatokyo : ParsedHttpSource() {
             .mapIndexed { i, element ->
                 Page(i, "", "https://megatokyo.com/" + element.attr("src"))
             }
+
     // certificate wasn't trusted for some reason so trusted all certificates
     private fun getUnsafeOkHttpClient(): OkHttpClient {
         // Create a trust manager that does not validate certificate chains
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-            }
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-            }
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                }
+                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                }
 
-            override fun getAcceptedIssuers() = arrayOf<X509Certificate>()
-        })
+                override fun getAcceptedIssuers() = arrayOf<X509Certificate>()
+            },
+        )
 
         // Install the all-trusting trust manager
         val sslContext = SSLContext.getInstance("SSL")
@@ -104,7 +107,7 @@ class Megatokyo : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga = throw Exception("Not used")
 
-    override fun searchMangaNextPageSelector(): String? = throw Exception("Not used")
+    override fun searchMangaNextPageSelector(): String = throw Exception("Not used")
 
     override fun searchMangaSelector(): String = throw Exception("Not used")
 
@@ -113,13 +116,13 @@ class Megatokyo : ParsedHttpSource() {
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request =
         throw Exception("Not used")
 
-    override fun popularMangaNextPageSelector(): String? = throw Exception("Not used")
+    override fun popularMangaNextPageSelector(): String = throw Exception("Not used")
 
     override fun popularMangaFromElement(element: Element): SManga = throw Exception("Not used")
 
     override fun mangaDetailsParse(document: Document): SManga = throw Exception("Not used")
 
-    override fun latestUpdatesNextPageSelector(): String? = throw Exception("Not used")
+    override fun latestUpdatesNextPageSelector(): String = throw Exception("Not used")
 
     override fun latestUpdatesFromElement(element: Element): SManga = throw Exception("Not used")
 
@@ -127,7 +130,7 @@ class Megatokyo : ParsedHttpSource() {
 
     override fun latestUpdatesSelector(): String = throw Exception("Not used")
 
-    protected open fun String.toDate(): Long {
+    private fun String.toDate(): Long {
         return runCatching { dateParser.parse(this.replace("(\\d+)(st|nd|rd|th)".toRegex(), "$1"))?.time }
             .onFailure { print("Something wrong happened: ${it.message}") }.getOrNull() ?: 0L
     }

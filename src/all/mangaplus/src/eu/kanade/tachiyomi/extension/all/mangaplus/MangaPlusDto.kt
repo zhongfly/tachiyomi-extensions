@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class MangaPlusResponse(
     val success: SuccessResult? = null,
-    val error: ErrorResult? = null
+    val error: ErrorResult? = null,
 )
 
 @Serializable
@@ -22,7 +22,7 @@ data class ErrorResult(val popups: List<Popup> = emptyList()) {
 data class Popup(
     val subject: String,
     val body: String,
-    val language: Language? = Language.ENGLISH
+    val language: Language? = Language.ENGLISH,
 )
 
 @Serializable
@@ -32,7 +32,7 @@ data class SuccessResult(
     val titleDetailView: TitleDetailView? = null,
     val mangaViewer: MangaViewer? = null,
     val allTitlesViewV2: AllTitlesViewV2? = null,
-    val webHomeViewV3: WebHomeViewV3? = null
+    val webHomeViewV3: WebHomeViewV3? = null,
 )
 
 @Serializable
@@ -40,13 +40,13 @@ data class TitleRankingView(val titles: List<Title> = emptyList())
 
 @Serializable
 data class AllTitlesViewV2(
-    @SerialName("AllTitlesGroup") val allTitlesGroup: List<AllTitlesGroup> = emptyList()
+    @SerialName("AllTitlesGroup") val allTitlesGroup: List<AllTitlesGroup> = emptyList(),
 )
 
 @Serializable
 data class AllTitlesGroup(
     val theTitle: String,
-    val titles: List<Title> = emptyList()
+    val titles: List<Title> = emptyList(),
 )
 
 @Serializable
@@ -64,7 +64,7 @@ data class TitleDetailView(
     val firstChapterList: List<Chapter> = emptyList(),
     val lastChapterList: List<Chapter> = emptyList(),
     val isSimulReleased: Boolean = false,
-    val chaptersDescending: Boolean = true
+    val chaptersDescending: Boolean = true,
 ) {
     private val isWebtoon: Boolean
         get() = firstChapterList.all(Chapter::isVerticalOnly) &&
@@ -83,22 +83,30 @@ data class TitleDetailView(
     private val isCompleted: Boolean
         get() = nonAppearanceInfo.contains(COMPLETED_REGEX) || isOneShot
 
+    private val isOnHiatus: Boolean
+        get() = nonAppearanceInfo.contains(HIATUS_REGEX)
+
     private val genres: List<String>
         get() = listOfNotNull(
             "Simulrelease".takeIf { isSimulReleased && !isReEdition && !isOneShot },
             "One-shot".takeIf { isOneShot },
             "Re-edition".takeIf { isReEdition },
-            "Webtoon".takeIf { isWebtoon }
+            "Webtoon".takeIf { isWebtoon },
         )
 
     fun toSManga(): SManga = title.toSManga().apply {
         description = (overview.orEmpty() + "\n\n" + viewingPeriodDescription).trim()
-        status = if (isCompleted) SManga.COMPLETED else SManga.ONGOING
+        status = when {
+            isCompleted -> SManga.COMPLETED
+            isOnHiatus -> SManga.ON_HIATUS
+            else -> SManga.ONGOING
+        }
         genre = genres.joinToString()
     }
 
     companion object {
         private val COMPLETED_REGEX = "completado|complete|completo".toRegex()
+        private val HIATUS_REGEX = "on a hiatus".toRegex(RegexOption.IGNORE_CASE)
         private val REEDITION_REGEX = "revival|remasterizada".toRegex()
     }
 }
@@ -107,7 +115,7 @@ data class TitleDetailView(
 data class MangaViewer(
     val pages: List<MangaPlusPage> = emptyList(),
     val titleId: Int? = null,
-    val titleName: String? = null
+    val titleName: String? = null,
 )
 
 @Serializable
@@ -118,7 +126,7 @@ data class Title(
     val portraitImageUrl: String,
     val landscapeImageUrl: String,
     val viewCount: Int = 0,
-    val language: Language? = Language.ENGLISH
+    val language: Language? = Language.ENGLISH,
 ) {
 
     fun toSManga(): SManga = SManga.create().apply {
@@ -137,19 +145,19 @@ enum class Language {
     INDONESIAN,
     PORTUGUESE_BR,
     RUSSIAN,
-    THAI
+    THAI,
 }
 
 @Serializable
 data class UpdatedTitleV2Group(
     val groupName: String,
-    val titleGroups: List<OriginalTitleGroup> = emptyList()
+    val titleGroups: List<OriginalTitleGroup> = emptyList(),
 )
 
 @Serializable
 data class OriginalTitleGroup(
     val theTitle: String,
-    val titles: List<UpdatedTitle> = emptyList()
+    val titles: List<UpdatedTitle> = emptyList(),
 )
 
 @Serializable
@@ -163,8 +171,11 @@ data class Chapter(
     val subTitle: String? = null,
     val startTimeStamp: Int,
     val endTimeStamp: Int,
-    val isVerticalOnly: Boolean = false
+    val isVerticalOnly: Boolean = false,
 ) {
+
+    val isExpired: Boolean
+        get() = subTitle == null
 
     fun toSChapter(): SChapter = SChapter.create().apply {
         name = "${this@Chapter.name} - $subTitle"
@@ -182,5 +193,5 @@ data class MangaPage(
     val imageUrl: String,
     val width: Int,
     val height: Int,
-    val encryptionKey: String? = null
+    val encryptionKey: String? = null,
 )

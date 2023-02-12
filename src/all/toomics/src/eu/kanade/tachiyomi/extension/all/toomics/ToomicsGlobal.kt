@@ -23,7 +23,7 @@ abstract class ToomicsGlobal(
     private val siteLang: String,
     private val dateFormat: SimpleDateFormat,
     override val lang: String = siteLang,
-    displayName: String = ""
+    displayName: String = "",
 ) : ParsedHttpSource() {
 
     override val name = "Toomics (Only free chapters)" + (if (displayName.isNotEmpty()) " ($displayName)" else "")
@@ -50,7 +50,7 @@ abstract class ToomicsGlobal(
     override fun popularMangaSelector(): String = "li > div.visual"
 
     override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        title = element.select("h4[class$=title]").first().ownText()
+        title = element.select("h4[class$=title]").first()!!.ownText()
         // sometimes href contains "/ab/on" at the end and redirects to a chapter instead of manga
         setUrlWithoutDomain(element.select("a").attr("href").removeSuffix("/ab/on"))
         thumbnail_url = element.select("img").attr("src")
@@ -125,9 +125,9 @@ abstract class ToomicsGlobal(
         val num = element.select("div.cell-num").text()
         val numText = if (num.isNotEmpty()) "$num - " else ""
 
-        name = numText + element.select("div.cell-title strong")?.first()?.ownText()
+        name = numText + element.select("div.cell-title strong").first()?.ownText()
         chapter_number = num.toFloatOrNull() ?: -1f
-        date_upload = parseChapterDate(element.select("div.cell-time time").text()!!)
+        date_upload = parseChapterDate(element.select("div.cell-time time").text())
         scanlator = "Toomics"
         url = element.select("a").attr("onclick")
             .substringAfter("href='")
@@ -135,8 +135,9 @@ abstract class ToomicsGlobal(
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        if (document.select("div.section_age_verif").isNotEmpty())
+        if (document.select("div.section_age_verif").isNotEmpty()) {
             throw Exception("Verify age via WebView")
+        }
 
         val url = document.select("head meta[property='og:url']").attr("content")
 

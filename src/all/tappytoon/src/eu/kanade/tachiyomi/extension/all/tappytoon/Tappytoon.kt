@@ -19,6 +19,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import uy.kohesive.injekt.injectLazy
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -34,29 +35,30 @@ class Tappytoon(override val lang: String) : HttpSource() {
         val res = chain.proceed(chain.request())
         val mime = res.headers["Content-Type"]
         if (res.isSuccessful) {
-            if (mime != "application/octet-stream")
+            if (mime != "application/octet-stream") {
                 return@addInterceptor res
+            }
             // Fix image content type
             val type = IMG_CONTENT_TYPE.toMediaType()
-            val body = res.body!!.bytes().toResponseBody(type)
+            val body = res.body.bytes().toResponseBody(type)
             return@addInterceptor res.newBuilder().body(body)
                 .header("Content-Type", IMG_CONTENT_TYPE).build()
         }
         // Throw JSON error if available
         if (mime == "application/json") {
-            res.body?.string()?.let(json::parseToJsonElement)?.run {
-                throw Error(jsonObject["message"]!!.jsonPrimitive.content)
+            res.body.string().let(json::parseToJsonElement).run {
+                throw IOException(jsonObject["message"]!!.jsonPrimitive.content)
             }
         }
         res.close()
-        throw Error("HTTP error ${res.code}")
+        throw IOException("HTTP error ${res.code}")
     }.build()
 
     private val json by injectLazy<Json>()
 
     private val apiHeaders by lazy {
         val res = client.newCall(GET(baseUrl, headers)).execute()
-        val data = res.asJsoup().getElementById("__NEXT_DATA__")
+        val data = res.asJsoup().getElementById("__NEXT_DATA__")!!
         val obj = json.parseToJsonElement(data.data())
             .jsonObject["props"]!!.jsonObject["initialState"]!!
             .jsonObject["axios"]!!.jsonObject["headers"]!!.jsonObject
@@ -179,11 +181,11 @@ class Tappytoon(override val lang: String) : HttpSource() {
 
     override fun getFilterList() = FilterList(
         Filter.Header("NOTE: can't be used with text search!"),
-        Genre(genres.keys.toTypedArray())
+        Genre(genres.keys.toTypedArray()),
     )
 
     private inline fun <reified T> Response.parse() =
-        json.decodeFromJsonElement<T>(json.parseToJsonElement(body!!.string()))
+        json.decodeFromJsonElement<T>(json.parseToJsonElement(body.string()))
 
     class Genre(values: Array<String>) : Filter.Select<String>("Genre", values)
 
@@ -216,7 +218,7 @@ class Tappytoon(override val lang: String) : HttpSource() {
             "Slice of Life" to "slice",
             "BL" to "bl",
             "Comedy" to "comedy",
-            "GL" to "gl"
+            "GL" to "gl",
         )
 
         private val dateFormat by lazy {

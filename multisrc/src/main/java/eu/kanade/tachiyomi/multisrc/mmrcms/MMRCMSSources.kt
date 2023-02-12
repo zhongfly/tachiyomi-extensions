@@ -55,8 +55,6 @@ class MMRCMSSources {
             SourceData.Single("Phoenix-Scans", "https://phoenix-scans.pl", "pl", className = "PhoenixScans", overrideVersionCode = 1),
             SourceData.Single("Scan-1", "https://wwv.scan-1.com", "fr", className = "ScanOne", overrideVersionCode = 1),
             SourceData.Single("Lelscan-VF", "https://lelscanvf.com", "fr", className = "LelscanVF", overrideVersionCode = 1),
-            SourceData.Single("Mangazuki Raws", "https://raws.mangazuki.co", "ko", overrideVersionCode = 2, isNsfw = true),
-            SourceData.Single("Mangazuki", "https://mangazuki.co", "en", overrideVersionCode = 2, isNsfw = true),
             SourceData.Single("AnimaRegia", "https://animaregia.net", "pt-BR", overrideVersionCode = 4),
             SourceData.Single("MangaVadisi", "http://manga-v2.mangavadisi.org", "tr", overrideVersionCode = 1),
             SourceData.Single("MangaID", "https://mangaid.click", "id", overrideVersionCode = 1),
@@ -66,7 +64,6 @@ class MMRCMSSources {
             SourceData.Single("Ama Scans", "https://amascan.com", "pt-BR", isNsfw = true, overrideVersionCode = 2),
             SourceData.Single("Gekkou Scans", "https://gekkou.com.br", "pt-BR", isNsfw = true, pkgName = "gekkouscan", overrideVersionCode = 12),
             SourceData.Single("Gekkou Hentai", "https://hentai.gekkouscans.com.br", "pt-BR", isNsfw = true),
-            SourceData.Single("White Cloud Pavilion", "https://whitecloudpavilion.com/manga/patreon", "en"),
             // NOTE: THIS SOURCE CONTAINS A CUSTOM LANGUAGE SYSTEM (which will be ignored)!
             SourceData.Single("HentaiShark", "https://www.hentaishark.com", "all", isNsfw = true),
             // MultiLang("HentaiShark", "https://www.hentaishark.com", listOf("en", "ja", "zh", "de", "nl", "ko", "cz", "eo", "mn", "ar", "sk", "la", "ua", "ceb", "tl", "fi", "bg", "tr"), isNsfw = true, className = "HentaiSharkFactory"),
@@ -91,7 +88,6 @@ class MMRCMSSources {
 // SourceData("pl", "Dracaena", "https://dracaena.webd.pl/czytnik"),
 // SourceData("pt-BR", "Comic Space", "https://www.comicspace.com.br"), //ID "Comic Space" -> 1847392744200215680
 // SourceData("pl", "ToraScans", "http://torascans.pl"),
-// SourceData("en", "White Cloud Pavilion", "https://www.whitecloudpavilion.com/manga/free"),
 // SourceData("en", "Biamam Scans", "https://biamam.com"),
 // SourceData("en", "Mangawww Reader", "https://mangawww.club"),
 // SourceData("ru", "Anigai clan", "http://anigai.ru"),
@@ -135,7 +131,6 @@ class MMRCMSSources {
 // SourceData("it", "Kingdom Italia Reader", "http://kireader.altervista.org"),
 // SourceData("ja", "IchigoBook", "http://ichigobook.com"),
 // SourceData("ja", "Mangaraw Online", "http://mangaraw.online"
-// SourceData("ja", "Mangazuki RAWS", "https://raws.mangazuki.co"),
 // SourceData("ja", "MangaRAW", "https://www.mgraw.com"),
 // SourceData("ja", "マンガ/漫画 マガジン/雑誌 raw", "http://netabare-manga-raw.com"),
 // SourceData("ru", "NAKAMA", "http://nakama.ru"),
