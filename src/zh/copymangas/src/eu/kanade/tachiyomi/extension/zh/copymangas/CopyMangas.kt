@@ -23,6 +23,11 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import okhttp3.FormBody
@@ -64,6 +69,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     private val groupRatelimitRegex = Regex("""/group/.*/chapters""")
     private val chapterRatelimitRegex = Regex("""/chapter2/""")
     private val imageQualityRegex = Regex("""(c|h)(800|1200|1500)x\.""")
+    private val throttledMessageRegex = Regex("""Expected available in (\d+) second""")
 
     private val trustManager = object : X509TrustManager {
         override fun getAcceptedIssuers(): Array<X509Certificate> {
@@ -242,6 +248,31 @@ class CopyMangas : HttpSource(), ConfigurableSource {
     override fun mangaDetailsParse(response: Response): SManga =
         response.parseAs<MangaWrapperDto>().toSMangaDetails()
 
+    override fun fetchMangaDetails(manga: SManga): Observable<SManga> = Single.create<SManga> {
+        val retries = 2
+        var result = SManga.create()
+        for (i in 0..retries) {
+            try {
+                val response = client.newCall(mangaDetailsRequest(manga)).execute()
+                result = mangaDetailsParse(response).apply { initialized = true }
+                break
+            } catch (e: Exception) {
+                if (e is ThrottleException && i < retries) {
+                    val wait = e.message!!.toLong() + 1L
+                    GlobalScope.launch {
+                        withContext(Dispatchers.IO) {
+                            delay(wait * 1000L)
+                        }
+                    }
+                    continue
+                } else {
+                    throw e
+                }
+            }
+        }
+        it.onSuccess(result)
+    }.toObservable()
+
     private fun ArrayList<SChapter>.fetchChapterGroup(manga: String, key: String, name: String) {
         val result = ArrayList<SChapter>(0)
         var offset = 0
@@ -305,11 +336,19 @@ class CopyMangas : HttpSource(), ConfigurableSource {
         return GET(imageUrl, headers)
     }
 
+    private class ThrottleException(waitTime: String) : Exception(waitTime)
+
     private inline fun <reified T> Response.parseAs(): T = use {
         if (header("Content-Type") != "application/json") {
             throw Exception("返回数据错误，不是json")
         } else if (code != 200) {
-            throw Exception(json.decodeFromStream<ResultMessageDto>(body.byteStream()).message)
+            val message = json.decodeFromStream<ResultMessageDto>(body.byteStream()).message
+            val matchResult = throttledMessageRegex.find(message)
+            if (matchResult != null) {
+                throw ThrottleException(matchResult.groupValues[1])
+            } else {
+                throw Exception(message)
+            }
         }
         json.decodeFromStream<ResultDto<T>>(body.byteStream()).results
     }
