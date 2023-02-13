@@ -94,7 +94,7 @@ class CopyMangas : HttpSource(), ConfigurableSource {
                     .build(),
             )
         }
-        .addNetworkInterceptor { chain ->
+        .addInterceptor { chain ->
             val url = chain.request().url.toString()
             when {
                 url.contains(groupRatelimitRegex) -> groupInterceptor.intercept(chain)
